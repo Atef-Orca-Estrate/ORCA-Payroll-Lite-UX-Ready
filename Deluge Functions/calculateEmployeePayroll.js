@@ -42,6 +42,17 @@
 //                  overtime_addition, public_holiday_addition, total_adjustment
 // ============================================================
 
+// ── Parse config parameters ───────────────────────────────────────────────
+// Config Maps are passed as JSON strings via invokeUrl POST from processPayrollBatch.
+// .toMap() converts them back to native Deluge Maps before use.
+// Empty string guards handle apply_insurance=false / apply_tax=false cases
+// where si_config, tax_config, tax_std, tax_hi are passed as empty Map strings.
+si_config  = ifnull(si_config,  "{}").toString().toMap();
+tax_config = ifnull(tax_config, "{}").toString().toMap();
+tax_std    = ifnull(tax_std,    "{}").toString().toMap();
+tax_hi     = ifnull(tax_hi,     "{}").toString().toMap();
+att_rules  = ifnull(att_rules,  "{}").toString().toMap();
+
 result = Map();
 result.put("employee_id", employee_id);
 
