@@ -143,8 +143,9 @@ mps_fields.put("mps_status",          "Ready");
 mps_fields.put("mps_progress_total",  0);
 mps_fields.put("mps_progress_done",   0);
 mps_fields.put("mps_progress_error",  0);
-mps_fields.put("mps_created_by",      zoho.loginuserid);
-mps_fields.put("mps_created_at",      zoho.currenttime.toString("yyyy-MM-dd HH:mm:ss"));
+mps_fields.put("mps_payslip_issue_date", zoho.currenttime.toString("yyyy-MM-dd"));
+mps_fields.put("mps_created_by",        zoho.loginuserid);
+mps_fields.put("mps_created_at",        zoho.currenttime.toString("yyyy-MM-dd HH:mm:ss"));
 
 create_response = zoho.people.addRecord("Monthly_Payroll_Setup", mps_fields);
 new_mps_id      = create_response.get("ID");
