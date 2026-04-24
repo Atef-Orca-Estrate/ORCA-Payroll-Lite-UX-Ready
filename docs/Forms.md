@@ -87,7 +87,7 @@ Updated by processPayrollBatch and processTerminationRun.
 
 | API Name | Zoho Type | Written By | Notes |
 |---|---|---|---|
-| `pq_status` | Select | All functions | `Pending` (gray) → `Processing` (amber) → `Done` (green) / `Error` (red) |
+| `pq_status` | Select | All functions | `Pending` (gray) → `Processing` (amber) → `Done` (green) / `Error` (red) / `Cancelled` (blue) |
 | `pq_queued_at` | DateTime | Orchestrator / onEmployeeTermination | Timestamp when record was created |
 | `pq_processed_at` | DateTime | processPayrollBatch / processTerminationRun | Timestamp when Done or Error set |
 | `pq_error` | Multi-line Text | processPayrollBatch / processTerminationRun | Error message truncated to 500 chars. Empty when status ≠ Error |
@@ -111,9 +111,10 @@ These fields are `null` for termination records.
 
 ```
 Regular path:
-  Orchestrator         → pq_status = Pending
-  processPayrollBatch  → pq_status = Processing   (on pick-up)
-  processPayrollBatch  → pq_status = Done / Error (on completion)
+  Orchestrator            → pq_status = Pending
+  processPayrollBatch     → pq_status = Processing   (on pick-up)
+  processPayrollBatch     → pq_status = Done / Error (on completion)
+  onEmployeeTermination   → pq_status = Cancelled    (existing Pending regular record)
 
 Termination path:
   onEmployeeTermination   → pq_status = Pending
