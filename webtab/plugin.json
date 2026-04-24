@@ -1,0 +1,11 @@
+{
+  "plugin_version": "1.0",
+  "platform_version": "1.0",
+  "product": "People",
+  "modules": {
+    "web_tab": {
+      "label": "Payroll Portal",
+      "url": "index.html"
+    }
+  }
+}
