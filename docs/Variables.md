@@ -297,3 +297,34 @@ Before the first payroll run, create all 7 org variables in group `Orca_Payroll_
 - Update `SI_CONFIG_JSON.monthly_ceiling` each fiscal year (Law 148/2019 schedule)
 - Update `TAX_BRACKETS_STD_JSON` and `TAX_BRACKETS_HI_JSON` if Tax Law changes
 
+
+---
+
+## P_Employee — Custom Fields Required
+
+These fields must be added as custom fields to the native Zoho People P_Employee form.
+All fields are written by HR (or onboarding flow) — never by payroll functions.
+All are read by `runPayrollOrchestrator` and `processTerminationRun`.
+
+| API Name | Zoho Field Type | Nullable | Notes |
+|---|---|:---:|---|
+| `emp_basic_salary` | Currency / Decimal | No | Base monthly salary |
+| `emp_housing_allowance` | Currency / Decimal | Yes | Null treated as 0 (Fix A) |
+| `emp_transport_allowance` | Currency / Decimal | Yes | Null treated as 0 (Fix A) |
+| `emp_medical_allowance` | Currency / Decimal | Yes | Null treated as 0 (Fix A) |
+| `emp_other_allowances` | Currency / Decimal | Yes | Null treated as 0 (Fix A) |
+| `emp_si_subscription_wage` | Currency / Decimal | Yes | SI base wage if different from gross. Null → falls back to gross_salary |
+| `emp_si_override` | Boolean | Yes | `null` = use org `apply_insurance` setting. `true` / `false` = per-employee override |
+| `emp_tax_override` | Boolean | Yes | `null` = use org `apply_tax` setting. `true` / `false` = per-employee override |
+
+### Override Resolution Logic
+
+Applies in both `processPayrollBatch` and `processTerminationRun`:
+
+```
+effective_apply_insurance = (emp_si_override  != null) ? emp_si_override  : apply_insurance
+effective_apply_tax       = (emp_tax_override != null) ? emp_tax_override : apply_tax
+```
+
+`emp_si_override` and `emp_tax_override` are captured in the Orchestrator's employee snapshot
+(`pq_employee_snapshot`) so `processPayrollBatch` never reads P_Employee directly.

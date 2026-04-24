@@ -160,6 +160,15 @@ info "END. STEP 5: gross_salary=" + gross_salary
    + " | subscription_wage=" + subscription_wage
    + " | hire_date=" + hire_date.toString("yyyy-MM-dd");
 
+// Per-employee override resolution
+// null = use org setting from PAYROLL_SETTINGS_JSON | true/false = per-employee override
+emp_si_override  = emp_rec.get("emp_si_override");
+emp_tax_override = emp_rec.get("emp_tax_override");
+effective_apply_insurance = (emp_si_override  != null) ? emp_si_override  : apply_insurance;
+effective_apply_tax       = (emp_tax_override != null) ? emp_tax_override : apply_tax;
+info "effective_apply_insurance=" + effective_apply_insurance
+   + " | effective_apply_tax=" + effective_apply_tax;
+
 // ── STEP 6: YTD from prior Final records this calendar year ───────────────────
 // ytd_si / ytd_martyrs omitted — Annual Reconciliation dropped in Lit
 info "INIT. STEP 6: Compute YTD";
@@ -336,7 +345,7 @@ si_param.put("employee_id",       employee_id);
 si_param.put("subscription_wage", final_sub_wage);
 si_param.put("entity_type",       entity_type);
 si_param.put("gross_salary",      final_gross);
-si_param.put("apply_insurance",   apply_insurance);
+si_param.put("apply_insurance",   effective_apply_insurance);
 
 si_result = invokeurl
 [
@@ -356,7 +365,7 @@ tax_param.put("martyrs_fund", si_result.get("martyrs_fund"));
 tax_param.put("hire_month",   hire_month);
 tax_param.put("hire_year",    hire_year);
 tax_param.put("payroll_year", current_year);
-tax_param.put("apply_tax",    apply_tax);
+tax_param.put("apply_tax",    effective_apply_tax);
 
 tax_result = invokeurl
 [

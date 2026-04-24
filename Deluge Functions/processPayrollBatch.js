@@ -171,6 +171,13 @@ for each queue_rec in batch_records
 		emp_basic_salary  = emp_snap.get("emp_basic_salary").toDecimal();
 		total_allowances  = emp_snap.get("total_allowances").toDecimal();
 
+		// Per-employee override resolution
+		// null = use org setting | true/false = per-employee override
+		emp_si_override  = emp_snap.get("emp_si_override");
+		emp_tax_override = emp_snap.get("emp_tax_override");
+		effective_apply_insurance = (emp_si_override  != null) ? emp_si_override  : apply_insurance;
+		effective_apply_tax       = (emp_tax_override != null) ? emp_tax_override : apply_tax;
+
 		ytd_gross        = ytd_snap.get("ytd_gross").toDecimal();
 		ytd_tax_withheld = ytd_snap.get("ytd_tax_withheld").toDecimal();
 
@@ -202,8 +209,8 @@ for each queue_rec in batch_records
 		calc_param.put("late_minutes",      late_minutes);
 		calc_param.put("overtime_hours",    overtime_hours);
 		calc_param.put("ph_days_worked",    ph_days_worked);
-		calc_param.put("apply_insurance",   apply_insurance);
-		calc_param.put("apply_tax",         apply_tax);
+		calc_param.put("apply_insurance",   effective_apply_insurance);
+		calc_param.put("apply_tax",         effective_apply_tax);
 		calc_param.put("entity_type",       entity_type);
 		calc_param.put("si_config",         si_config.toString());
 		calc_param.put("tax_config",        tax_config.toString());

@@ -203,6 +203,13 @@ while(has_more)
 		hire_month = hire_date.month();
 		hire_year  = hire_date.year();
 
+		// Per-employee SI/tax override flags
+		// null = use org-level setting from PAYROLL_SETTINGS_JSON
+		// true/false = override for this employee only
+		// processPayrollBatch resolves: effective = ifnull(override, org_setting)
+		emp_si_override  = emp.get("emp_si_override");   // null | true | false
+		emp_tax_override = emp.get("emp_tax_override");  // null | true | false
+
 		// Build profile snapshot — processPayrollBatch reads from here, not P_Employee
 		snap = Map();
 		snap.put("basic_salary",      basic_salary);
@@ -211,6 +218,8 @@ while(has_more)
 		snap.put("subscription_wage", sub_wage);
 		snap.put("hire_month",        hire_month);
 		snap.put("hire_year",         hire_year);
+		snap.put("emp_si_override",   emp_si_override);
+		snap.put("emp_tax_override",  emp_tax_override);
 
 		emp_map.put(emp_id, snap);
 		all_employees.add(emp_id);
