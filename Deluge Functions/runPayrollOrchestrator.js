@@ -12,10 +12,12 @@
 //   STEP 4  — Parse public holidays from MPS
 //   STEP 5  — Read run scope from PAYROLL_SETTINGS_JSON
 //   STEP 6  — Build employee list (paginated, 200/call)
+//             for each over leftPad page list — replaces while() (not in Deluge)
 //             Capture emp profile in same pass → emp_map
 //   STEP 7  — Bulk YTD: one query all Final records this year
 //             Aggregate per employee → ytd_map (no per-emp query in batch)
 //   STEP 8  — Bulk attendance: paginated API call (100 emp/page)
+//             for each over leftPad page list — replaces while() (not in Deluge)
 //             Aggregate 4 fields per employee → att_map
 //             Nested loop runs HERE once — not in processPayrollBatch
 //   STEP 9  — Write Payroll_Queue records with 7 snapshot fields
@@ -160,11 +162,20 @@ info "INIT. STEP 6: Build employee list";
 all_employees = List();
 emp_map       = Map();  // EmployeeID → profile snapshot Map
 
-sindex   = 1;
-has_more = true;
-
-while(has_more)
+// Page list replaces while() — Deluge has no while()
+// Max 20 pages × 200 records = 4,000 employees per run
+// leftPad gives zero-padded string keys: "000", "001" ... "019"
+emp_page_list = List();
+for each n in {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19}
 {
+	emp_page_list.add(n.toString().leftPad(3, "0"));
+}
+
+for each page_key in emp_page_list
+{
+	// sIndex is 1-based in Zoho People API
+	sindex = (page_key.toLong() * 200) + 1;
+
 	emp_response = invokeurl
 	[
 		url :"https://people.zoho.com/people/api/forms/P_Employee/records"
@@ -174,7 +185,7 @@ while(has_more)
 	];
 
 	emp_result = emp_response.get("response").get("result");
-	if(emp_result == null || emp_result.size() == 0) { has_more = false; break; }
+	if(emp_result == null || emp_result.size() == 0) { break; }
 
 	for each emp in emp_result
 	{
@@ -224,8 +235,8 @@ while(has_more)
 		all_employees.add(emp_id);
 	}
 
-	if(emp_result.size() < 200) { has_more = false; }
-	else { sindex = sindex + 200; }
+	// Fewer than 200 results → last page — no more employees
+	if(emp_result.size() < 200) { break; }
 }
 info "END. STEP 6: employee count=" + all_employees.size();
 
@@ -297,11 +308,23 @@ for each emp_id in all_employees
 	att_map.put(emp_id, a);
 }
 
-att_sindex  = 0;
-att_has_more = true;
+att_sindex    = 0;
 
-while(att_has_more)
+// Page list replaces while() — Deluge has no while()
+// Max 40 pages × 100 records = 4,000 employees per attendance fetch
+// leftPad gives zero-padded string keys: "000", "001" ... "039"
+att_page_list = List();
+for each n in {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
+               20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39}
 {
+	att_page_list.add(n.toString().leftPad(3, "0"));
+}
+
+for each att_page_key in att_page_list
+{
+	// startIndex is 0-based in the attendance API
+	att_sindex = att_page_key.toLong() * 100;
+
 	att_response = invokeurl
 	[
 		url :"https://people.zoho.com/people/api/attendance/getUserReport"
@@ -315,10 +338,10 @@ while(att_has_more)
 		connection:"zoho_people_payroll_conn"
 	];
 
-	if(att_response.get("status") != 0) { att_has_more = false; break; }
+	if(att_response.get("status") != 0) { break; }
 
 	att_results = att_response.get("result");
-	if(att_results == null || att_results.size() == 0) { att_has_more = false; break; }
+	if(att_results == null || att_results.size() == 0) { break; }
 
 	for each emp_att in att_results
 	{
@@ -368,9 +391,8 @@ while(att_has_more)
 		att_map.get(att_emp_id).put("ph_days_worked", emp_ph);
 	}
 
-	// Attendance API returns 100 employees per page
-	if(att_results.size() < 100) { att_has_more = false; }
-	else { att_sindex = att_sindex + 100; }
+	// Fewer than 100 results → last page — no more attendance data
+	if(att_results.size() < 100) { break; }
 }
 info "END. STEP 8: Attendance aggregated for " + att_map.size() + " employees.";
 
