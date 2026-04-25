@@ -16,6 +16,8 @@
 //   STEP 3  — Fetch batch queue records (Pending, this batch_number)
 //   STEP 4  — Per-employee loop:
 //             a. Parse 7 snapshot fields from queue record — zero extra reads
+//             a-2. Fetch unpaid leave live — 1 invokeUrl per employee
+//                  (moved from Orchestrator STEP 9 to reduce Orchestrator runtime)
 //             b. Call calculateEmployeePayroll — 1 invokeUrl (was 3)
 //             c. Compute final_net
 //             d. Rerun check — convert existing record in place if found
@@ -183,16 +185,49 @@ for each queue_rec in batch_records
 
 		// Flat attendance integers — stored directly as field values by Orchestrator
 		// No parsing, no loops — just read
-		absent_days       = ifnull(queue_rec.get("pq_absent_days"),       "0").toInteger();
-		late_minutes      = ifnull(queue_rec.get("pq_late_minutes"),      "0").toInteger();
-		overtime_hours    = ifnull(queue_rec.get("pq_overtime_hours"),    "0").toDecimal();
-		ph_days_worked    = ifnull(queue_rec.get("pq_ph_days_worked"),    "0").toInteger();
-		unpaid_leave_days = ifnull(queue_rec.get("pq_unpaid_leave_days"), "0").toDecimal();
+		absent_days    = ifnull(queue_rec.get("pq_absent_days"),    "0").toInteger();
+		late_minutes   = ifnull(queue_rec.get("pq_late_minutes"),   "0").toInteger();
+		overtime_hours = ifnull(queue_rec.get("pq_overtime_hours"), "0").toDecimal();
+		ph_days_worked = ifnull(queue_rec.get("pq_ph_days_worked"), "0").toInteger();
+
+		// ── 4a-2: Fetch unpaid leave per employee ─────────────────────────────
+		// Moved from Orchestrator STEP 9 to reduce Orchestrator runtime.
+		// Called once per employee within the batch (10 calls max per batch).
+		// period_start and period_end derived from payroll_period (already available).
+		period_start_str = payroll_period + "-01";
+		period_end_str   = (payroll_period + "-01").toDate().addMonth(1).subDay(1).toString("yyyy-MM-dd");
+
+		unpaid_leave_days = 0.0;
+		leave_response = invokeurl
+		[
+			url :"https://people.zoho.com/people/api/leave/v2/getLeaveDetails"
+			type :GET
+			parameters:{
+				"userId": employee_id,
+				"from":   period_start_str,
+				"to":     period_end_str,
+				"type":   "UNPAID"
+			}
+			connection:"zoho_people_payroll_conn"
+		];
+		if(leave_response.get("status") == 0)
+		{
+			leave_list = leave_response.get("result");
+			if(leave_list != null)
+			{
+				for each leave_rec in leave_list
+				{
+					unpaid_leave_days = unpaid_leave_days
+					                  + ifnull(leave_rec.get("noOfDays"), "0").toDecimal();
+				}
+			}
+		}
+		unpaid_leave_days = unpaid_leave_days.round(2);
 
 		info "Snapshot parsed | gross=" + gross_salary + " | ytd_gross=" + ytd_gross
 		   + " | absent=" + absent_days + " | late_min=" + late_minutes
 		   + " | ot_hrs=" + overtime_hours + " | ph=" + ph_days_worked
-		   + " | unpaid=" + unpaid_leave_days;
+		   + " | unpaid=" + unpaid_leave_days + " (fetched live)";
 
 		// ── 4b: calculateEmployeePayroll — 1 invokeUrl (merged SI + Tax + Attendance) ──
 		// Config maps passed as stringified JSON — calculateEmployeePayroll calls .toMap() on receipt

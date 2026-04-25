@@ -18,12 +18,11 @@
 //   STEP 8  — Bulk attendance: paginated API call (100 emp/page)
 //             Aggregate 4 fields per employee → att_map
 //             Nested loop runs HERE once — not in processPayrollBatch
-//   STEP 9  — Leave per employee: store in leave_map
-//             processPayrollBatch reads from queue snapshot — zero leave calls in batch
-//   STEP 10 — Write Payroll_Queue records with 7 snapshot fields
+//   STEP 9  — Write Payroll_Queue records with 7 snapshot fields
 //             Batch trigger record (first of 10): pq_queue_at set → fires Workflow A
-//   STEP 11 — Update MPS progress total
-//   STEP 12 — Release global lock
+//             pq_unpaid_leave_days NOT written here — fetched per employee in processPayrollBatch
+//   STEP 10 — Update MPS progress total
+//   STEP 11 — Release global lock
 // ============================================================
 
 info "INIT. runPayrollOrchestrator | period: " + payroll_period;
@@ -375,44 +374,7 @@ while(att_has_more)
 }
 info "END. STEP 8: Attendance aggregated for " + att_map.size() + " employees.";
 
-// ── STEP 9: Unpaid leave per employee ────────────────────────────────────
-// Fetched here and stored in queue snapshot.
-// processPayrollBatch reads pq_unpaid_leave_days — zero leave API calls in batch.
-info "INIT. STEP 9: Unpaid leave fetch";
-leave_map = Map();  // EmployeeID → Decimal days
-
-for each emp_id in all_employees
-{
-	leave_response = invokeurl
-	[
-		url :"https://people.zoho.com/people/api/leave/v2/getLeaveDetails"
-		type :GET
-		parameters:{
-			"userId": emp_id,
-			"from":   period_start,
-			"to":     period_end,
-			"type":   "UNPAID"
-		}
-		connection:"zoho_people_payroll_conn"
-	];
-
-	leave_days = 0.0;
-	if(leave_response.get("status") == 0)
-	{
-		leave_list = leave_response.get("result");
-		if(leave_list != null)
-		{
-			for each leave_rec in leave_list
-			{
-				leave_days = leave_days + ifnull(leave_rec.get("noOfDays"), "0").toDecimal();
-			}
-		}
-	}
-	leave_map.put(emp_id, leave_days.round(2));
-}
-info "END. STEP 9: Leave fetched for " + leave_map.size() + " employees.";
-
-// ── STEP 10: Write Payroll_Queue records (batches of 10) ─────────────────
+// ── STEP 9: Write Payroll_Queue records (batches of 10) ──────────────────
 // Snapshot fields written per record — processPayrollBatch reads locally (zero extra API calls).
 // First record of each batch: pq_queue_at set → fires Workflow A time-based trigger.
 // Subsequent records in batch: pq_queue_at null — Workflow A ignores them.
@@ -457,12 +419,12 @@ for each emp_id in all_employees
 	queue_rec.put("pq_employee_snapshot",    emp_snap.toString());
 	queue_rec.put("pq_ytd_snapshot",         ytd_snap_map.toString());
 
-	// Flat attendance integers — no parsing needed in processPayrollBatch
+	// Flat attendance integers — aggregated from bulk attendance API in STEP 8
+	// pq_unpaid_leave_days omitted — fetched per employee in processPayrollBatch
 	queue_rec.put("pq_absent_days",          att_snap.get("absent_days").toInteger());
 	queue_rec.put("pq_late_minutes",         att_snap.get("late_minutes").toInteger());
 	queue_rec.put("pq_overtime_hours",       att_snap.get("overtime_hours").toDecimal());
 	queue_rec.put("pq_ph_days_worked",       att_snap.get("ph_days_worked").toInteger());
-	queue_rec.put("pq_unpaid_leave_days",    leave_map.get(emp_id).toDecimal());
 
 	// First record of each batch: set pq_queue_at → Workflow A condition matches → fires processPayrollBatch
 	if(batch_pos == 0)
@@ -485,7 +447,7 @@ for each emp_id in all_employees
 }
 info "END. STEP 10: Queue written | total=" + total_queued + " | batches=" + batch_number;
 
-// ── STEP 11: Update MPS progress counters ────────────────────────────────
+// ── STEP 10: Update MPS progress counters ────────────────────────────────
 info "INIT. STEP 11: Update MPS progress";
 zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {
 	"mps_progress_total": total_queued,
@@ -494,7 +456,7 @@ zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {
 });
 info "END. STEP 11: mps_progress_total=" + total_queued;
 
-// ── STEP 12: Release global lock ─────────────────────────────────────────
+// ── STEP 11: Release global lock ─────────────────────────────────────────
 info "INIT. STEP 12: Release lock";
 payroll_run_cfg.put("lock", false);
 active_settings.put("payroll_run", payroll_run_cfg);

@@ -105,7 +105,7 @@ These fields are `null` for termination records.
 | `pq_late_minutes` | Integer | Orchestrator | Total late minutes for the full period |
 | `pq_overtime_hours` | Decimal | Orchestrator | Total OT hours for the full period |
 | `pq_ph_days_worked` | Integer | Orchestrator | Public holiday days worked |
-| `pq_unpaid_leave_days` | Decimal | Orchestrator | From per-employee leave API fetch in Orchestrator STEP 9 |
+| `pq_unpaid_leave_days` | Decimal | processPayrollBatch | Fetched live per employee inside batch loop. Not written by Orchestrator. |
 
 ### Status Flow
 
