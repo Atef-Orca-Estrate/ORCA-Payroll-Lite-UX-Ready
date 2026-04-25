@@ -163,18 +163,14 @@ all_employees = List();
 emp_map       = Map();  // EmployeeID → profile snapshot Map
 
 // Page list replaces while() — Deluge has no while()
-// Max 20 pages × 200 records = 4,000 employees per run
+// Max 10 pages × 200 records = 4,000 employees per run
 // leftPad gives zero-padded string keys: "000", "001" ... "019"
-emp_page_list = List();
-for each n in {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19}
-{
-	emp_page_list.add(n.toString().leftPad(3, "0"));
-}
-
+emp_page_index = 0;
+emp_page_list =  leftpad(" ",10)).replaceAll(" ",",").removeLastOccurence(",").toList();
 for each page_key in emp_page_list
 {
 	// sIndex is 1-based in Zoho People API
-	sindex = (page_key.toLong() * 200) + 1;
+	sindex = (emp_page_index.toLong() * 200) + 1;
 
 	emp_response = invokeurl
 	[
@@ -186,6 +182,7 @@ for each page_key in emp_page_list
 
 	emp_result = emp_response.get("response").get("result");
 	if(emp_result == null || emp_result.size() == 0) { break; }
+	emp_page_index = emp_page_index +1 ;
 
 	for each emp in emp_result
 	{
@@ -308,22 +305,18 @@ for each emp_id in all_employees
 	att_map.put(emp_id, a);
 }
 
-att_sindex    = 0;
 
 // Page list replaces while() — Deluge has no while()
 // Max 40 pages × 100 records = 4,000 employees per attendance fetch
 // leftPad gives zero-padded string keys: "000", "001" ... "039"
-att_page_list = List();
-for each n in {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
-               20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39}
-{
-	att_page_list.add(n.toString().leftPad(3, "0"));
-}
+att_sindex    = 0;
+att_page_index = 0;
+att_page_list =  leftpad(" ",10)).replaceAll(" ",",").removeLastOccurence(",").toList();
 
 for each att_page_key in att_page_list
 {
 	// startIndex is 0-based in the attendance API
-	att_sindex = att_page_key.toLong() * 100;
+	att_sindex = att_page_index.toLong() * 100;
 
 	att_response = invokeurl
 	[
@@ -342,7 +335,7 @@ for each att_page_key in att_page_list
 
 	att_results = att_response.get("result");
 	if(att_results == null || att_results.size() == 0) { break; }
-
+    att_page_index = att_page_index + 1 ;
 	for each emp_att in att_results
 	{
 		att_emp_id = emp_att.get("employeeDetails").get("id");
