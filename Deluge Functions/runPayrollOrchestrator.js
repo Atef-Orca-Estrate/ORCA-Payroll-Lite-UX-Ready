@@ -163,10 +163,10 @@ all_employees = List();
 emp_map       = Map();  // EmployeeID → profile snapshot Map
 
 // Page list replaces while() — Deluge has no while()
-// Max 10 pages × 200 records = 4,000 employees per run
-// leftPad gives zero-padded string keys: "000", "001" ... "019"
+// leftPad creates 20 spaces → replaceAll converts to commas → toList() = 20 slots
+// 20 pages × 200 records = 4,000 employees max
 emp_page_index = 0;
-emp_page_list =  leftpad(" ",10)).replaceAll(" ",",").removeLastOccurence(",").toList();
+emp_page_list  = leftPad(" ", 20).replaceAll(" ", ",").removeLastOccurence(",").toList();
 for each page_key in emp_page_list
 {
 	// sIndex is 1-based in Zoho People API
@@ -182,7 +182,7 @@ for each page_key in emp_page_list
 
 	emp_result = emp_response.get("response").get("result");
 	if(emp_result == null || emp_result.size() == 0) { break; }
-	emp_page_index = emp_page_index +1 ;
+	emp_page_index = emp_page_index + 1;
 
 	for each emp in emp_result
 	{
@@ -249,41 +249,54 @@ if(all_employees.size() == 0)
 	return {"status":"error","message":"No active employees found for scope: " + scope};
 }
 
-// ── STEP 7: Bulk YTD — one query, aggregate per employee ─────────────────
-// Reads ALL Final records for this calendar year in one call.
-// Aggregates ytd_gross + ytd_tax_withheld per employee into ytd_map.
-// processPayrollBatch reads ytd from queue snapshot — zero YTD queries in batch.
+// ── STEP 7: Bulk YTD — paginated query, aggregate per employee ───────────
+// getRecords returns max 200 records per call — paginate for large orgs.
+// leftPad creates 50 spaces → 50 slots → 50 pages × 200 = 10,000 records max.
 info "INIT. STEP 7: Bulk YTD";
 ytd_map = Map();  // EmployeeID → {ytd_gross, ytd_tax_withheld}
 
-ytd_records = zoho.people.getRecords("Monthly_Payroll_Record",
-	{"searchField":"pr_status","searchOperator":"Is","searchText":"Final"});
+ytd_page_index = 0;
+ytd_page_list  = leftPad(" ", 50).replaceAll(" ", ",").removeLastOccurence(",").toList();
 
-for each pr in ytd_records
+for each ytd_item in ytd_page_list
 {
-	// Filter to current calendar year only — string prefix match
-	if(!pr.get("pr_payroll_period").startsWith(payroll_year.toString())) { continue; }
+	ytd_sindex = (ytd_page_index * 200) + 1;
 
-	// Exclude termination records from regular YTD accumulation
-	if(pr.get("pr_is_final_settlement") == true) { continue; }
+	ytd_records = zoho.people.getRecords("Monthly_Payroll_Record",
+		{"searchField":"pr_status","searchOperator":"Is","searchText":"Final",
+		 "sIndex": ytd_sindex, "limit": 200});
 
-	pr_emp = pr.get("pr_employee");
+	if(ytd_records == null || ytd_records.size() == 0) { break; }
+	ytd_page_index = ytd_page_index + 1;
 
-	if(!ytd_map.containsKey(pr_emp))
+	for each pr in ytd_records
 	{
-		ytd_entry = Map();
-		ytd_entry.put("ytd_gross",        0.0);
-		ytd_entry.put("ytd_tax_withheld", 0.0);
-		ytd_map.put(pr_emp, ytd_entry);
+		// Filter to current calendar year only — string prefix match
+		if(!pr.get("pr_payroll_period").startsWith(payroll_year.toString())) { continue; }
+
+		// Exclude termination records from regular YTD accumulation
+		if(pr.get("pr_is_final_settlement") == true) { continue; }
+
+		pr_emp = pr.get("pr_employee");
+
+		if(!ytd_map.containsKey(pr_emp))
+		{
+			ytd_entry = Map();
+			ytd_entry.put("ytd_gross",        0.0);
+			ytd_entry.put("ytd_tax_withheld", 0.0);
+			ytd_map.put(pr_emp, ytd_entry);
+		}
+
+		ytd_map.get(pr_emp).put("ytd_gross",
+			(ytd_map.get(pr_emp).get("ytd_gross").toDecimal()
+			+ ifnull(pr.get("pr_gross_salary"), "0").toDecimal()).round(2));
+
+		ytd_map.get(pr_emp).put("ytd_tax_withheld",
+			(ytd_map.get(pr_emp).get("ytd_tax_withheld").toDecimal()
+			+ ifnull(pr.get("pr_monthly_tax"), "0").toDecimal()).round(2));
 	}
 
-	ytd_map.get(pr_emp).put("ytd_gross",
-		(ytd_map.get(pr_emp).get("ytd_gross").toDecimal()
-		+ ifnull(pr.get("pr_gross_salary"), "0").toDecimal()).round(2));
-
-	ytd_map.get(pr_emp).put("ytd_tax_withheld",
-		(ytd_map.get(pr_emp).get("ytd_tax_withheld").toDecimal()
-		+ ifnull(pr.get("pr_monthly_tax"), "0").toDecimal()).round(2));
+	if(ytd_records.size() < 200) { break; }
 }
 info "END. STEP 7: ytd_map size=" + ytd_map.size();
 
@@ -307,13 +320,11 @@ for each emp_id in all_employees
 
 
 // Page list replaces while() — Deluge has no while()
-// Max 40 pages × 100 records = 4,000 employees per attendance fetch
-// leftPad gives zero-padded string keys: "000", "001" ... "039"
-att_sindex    = 0;
+// leftPad creates 40 spaces → 40 slots → 40 pages × 100 = 4,000 employees max
 att_page_index = 0;
-att_page_list =  leftpad(" ",10)).replaceAll(" ",",").removeLastOccurence(",").toList();
+att_page_list  = leftPad(" ", 40).replaceAll(" ", ",").removeLastOccurence(",").toList();
 
-for each att_page_key in att_page_list
+for each att_item in att_page_list
 {
 	// startIndex is 0-based in the attendance API
 	att_sindex = att_page_index.toLong() * 100;
@@ -394,7 +405,7 @@ info "END. STEP 8: Attendance aggregated for " + att_map.size() + " employees.";
 // First record of each batch: pq_queue_at set → fires Workflow A time-based trigger.
 // Subsequent records in batch: pq_queue_at null — Workflow A ignores them.
 // Batches staggered by 3 minutes to prevent overlap.
-info "INIT. STEP 10: Write queue records";
+info "INIT. STEP 9: Write queue records";
 
 batch_number   = 1;
 batch_pos      = 0;   // position within current batch (0–9)
@@ -460,19 +471,19 @@ for each emp_id in all_employees
 		batch_pos     = 0;
 	}
 }
-info "END. STEP 10: Queue written | total=" + total_queued + " | batches=" + batch_number;
+info "END. STEP 9: Queue written | total=" + total_queued + " | batches=" + batch_number;
 
 // ── STEP 10: Update MPS progress counters ────────────────────────────────
-info "INIT. STEP 11: Update MPS progress";
+info "INIT. STEP 10: Update MPS progress";
 zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {
 	"mps_progress_total": total_queued,
 	"mps_progress_done":  0,
 	"mps_progress_error": 0
 });
-info "END. STEP 11: mps_progress_total=" + total_queued;
+info "END. STEP 10: mps_progress_total=" + total_queued;
 
 // ── STEP 11: Release global lock ─────────────────────────────────────────
-info "INIT. STEP 12: Release lock";
+info "INIT. STEP 11: Release lock";
 payroll_run_cfg.put("lock", false);
 active_settings.put("payroll_run", payroll_run_cfg);
 payroll_settings.put("active_settings", active_settings);
@@ -483,7 +494,7 @@ invokeurl
 	parameters:{"value":payroll_settings.toString()}
 	connection:"zoho_people_payroll_conn"
 ];
-info "END. STEP 12: Lock released.";
+info "END. STEP 11: Lock released.";
 
 info "END. runPayrollOrchestrator | period=" + payroll_period
    + " | queued=" + total_queued + " | batches=" + batch_number;
