@@ -1,32 +1,10 @@
 # Orca Payroll Lit 2.0
 
-Egyptian payroll compliance extension built on **Zoho People**, implemented entirely in **Deluge scripting language** with a **React web tab** portal. This is a custom-built solution — Zoho does not offer a native Egyptian payroll module.
-
----
-
 ## What This Is
 
-A production payroll system for Egyptian labor law compliance, covering:
-- Egyptian Income Tax Law 7/2024 (forward annualisation, bracket-based tax)
-- Social Insurance Law 148/2019 (employee 11%, employer 18.75%, martyrs fund 0.05%)
-- Attendance-driven deductions and additions (absence, unpaid leave, late, overtime, public holidays)
-- Termination (partial-month pro-rated payroll on employee exit)
-- A permission-driven HR web portal (React SPA embedded as a Zoho People web tab)
+Orca Payroll Lit is a **custom Egyptian payroll compliance extension** built on top of Zoho People. It exists because Zoho does not offer a native payroll module for Egypt. The system implements Egyptian Income Tax Law 7/2024 and Social Insurance Law 148/2019, and runs entirely within the Zoho People platform using Deluge scripting, custom forms, org variables, and a React web tab served as a Zoho extension.
 
-**Orca Payroll Lit** is a stripped-down variant of the full system. Removed: KPI tracking, Annual Reconciliation, Loans. Retained: core payroll, attendance adjustments, termination run.
-
----
-
-## Platform and Language
-
-| Layer | Technology |
-|---|---|
-| Platform | Zoho People (HR SaaS) |
-| Scripting | Deluge (Zoho's proprietary language — no while(), no npm, 5-min execution timeout) |
-| Web portal | React 18 + Vite 4 + Tailwind CSS |
-| Extension packaging | Zoho Extension CLI 1.0.28 |
-| Data center | US — `https://people.zoho.com` |
-| Authentication | Zoho OAuth 2.0 via `zoho_people_payroll_conn` connection |
+The "Lit" (Lite) designation means this is the stripped-down variant: no KPI tracking, no annual reconciliation, no loans module. It targets clients with simpler payroll needs while retaining the full calculation engine, attendance adjustments, and termination processing.
 
 ---
 
@@ -35,550 +13,511 @@ A production payroll system for Egyptian labor law compliance, covering:
 ```
 ORCA-Payroll---Lite-2.0/
 │
-├── README.md                          ← This file
-│
-├── Deluge Functions/
-│   ├── onEmployeeTermination.js       ← Workflow Rule: fires on P_Employee status change
-│   ├── runPayrollOrchestrator.js      ← Batch engine entry point: bulk fetch, queue build
-│   ├── processPayrollBatch.js         ← Per-batch processor: reads snapshots, runs calc
-│   ├── calculateEmployeePayroll.js    ← Merged calc: SI + Tax + Attendance inline (1 invokeUrl)
-│   ├── processTerminationRun.js       ← Termination path: pro-rate, 3 standalone calcs
+├── Deluge Functions/                    ← Server-side Zoho Deluge scripts
+│   ├── runPayrollOrchestrator.js        ← Entry point for a regular payroll run
+│   ├── processPayrollBatch.js           ← Processes one batch of 10 employees
+│   ├── calculateEmployeePayroll.js      ← Merged SI + Tax + Attendance calculation
+│   ├── onEmployeeTermination.js         ← Fires on employee status change
+│   ├── processTerminationRun.js         ← Calculates and records termination pay
 │   │
-│   └── Gateway Functions/             ← Web tab API layer (browser never touches Zoho APIs)
-│       ├── portalGetSettings.js       ← Read PAYROLL_SETTINGS_JSON + PAYROLL_PORTAL_CONFIG
-│       ├── portalSaveSettings.js      ← Write settings/config/users (3 sections)
-│       ├── portalCreateMPS.js         ← Create Monthly_Payroll_Setup record
-│       ├── portalUpdateMPS.js         ← Override working days on MPS
-│       ├── portalTriggerOrchestrator.js ← Pre-flight check + trigger runPayrollOrchestrator
-│       ├── portalGetQueueStatus.js    ← Read Payroll_Queue — regular + termination tabs
-│       └── portalGetPeriodReport.js   ← Aggregate period summary for reports feature
+│   └── Gateway Functions/              ← Web tab API layer (one per feature)
+│       ├── portalGetSettings.js         ← Read PAYROLL_SETTINGS_JSON + portal config
+│       ├── portalSaveSettings.js        ← Write settings / portal config / user map
+│       ├── portalCreateMPS.js           ← Create Monthly_Payroll_Setup record
+│       ├── portalUpdateMPS.js           ← Override working days on existing MPS
+│       ├── portalTriggerOrchestrator.js ← Pre-flight check + fire Orchestrator
+│       ├── portalGetQueueStatus.js      ← Read queue status for current period
+│       └── portalGetPeriodReport.js     ← Aggregate period summary financials
 │
 ├── docs/
-│   ├── Variables.md                   ← All 7 org variable structures with field references
-│   ├── Forms.md                       ← All 4 forms with 76 field specs across 10 groups
-│   └── Workflows.md                   ← Deployment spec for 3 workflow rules
+│   ├── Variables.md                     ← All 7 org variables with full JSON structures
+│   ├── Forms.md                         ← All 4 forms with every field documented
+│   └── Workflows.md                     ← 3 workflow rules with deployment specs
 │
-└── webtab/
-    ├── plugin.json                    ← Zoho extension manifest
-    ├── package.json                   ← React 18 + Vite 4 + Tailwind 3
-    ├── vite.config.js                 ← Builds to webtab/app/ for CLI packaging
-    ├── index.html                     ← Loads Zoho JS SDK script
-    └── src/
-        ├── App.jsx                    ← Root: AuthProvider + ToastProvider + Shell
-        ├── main.jsx                   ← React root mount
-        ├── index.css                  ← Tailwind directives
-        ├── context/
-        │   └── AuthContext.jsx        ← Global auth state + Toast system
-        ├── hooks/
-        │   ├── useSDK.js              ← Zoho SDK init + user identity resolution
-        │   └── useGateway.js          ← All 7 gateway calls + DEV_MODE mock data
-        ├── utils/
-        │   └── permissions.js         ← resolvePermissions(config, employeeId)
-        ├── components/
-        │   ├── Shell.jsx              ← Init flow, layout wrapper, routing
-        │   ├── Nav.jsx                ← Sidebar (desktop) + BottomNav (mobile)
-        │   └── LoadingScreen.jsx      ← LoadingScreen + AccessDenied + ErrorScreen
-        └── features/
-            ├── QueueMonitor/          ← 30s polling, Tab A regular, Tab B termination
-            ├── Reports/               ← Period picker, 11 metric cards
-            ├── RunPayroll/            ← 3-step stepper: Setup → Review → Running
-            └── Settings/              ← Payroll settings, portal config, user management
+├── webtab/                              ← React SPA (Zoho Extension CLI 1.0.28)
+│   ├── plugin.json                      ← Zoho extension manifest
+│   ├── package.json                     ← React 18 + Vite 4 + Tailwind 3
+│   ├── index.html                       ← Loads Zoho People JS SDK
+│   └── src/
+│       ├── App.jsx                      ← Root: Auth + Toast providers
+│       ├── context/AuthContext.jsx      ← Global auth state + toast system
+│       ├── hooks/
+│       │   ├── useGateway.js            ← All 7 gateway calls + full mock data
+│       │   └── useSDK.js                ← Zoho SDK init + identity resolution
+│       ├── utils/permissions.js         ← resolvePermissions(config, employeeId)
+│       ├── components/
+│       │   ├── Shell.jsx                ← Init flow + layout wrapper
+│       │   ├── Nav.jsx                  ← Sidebar (desktop) + BottomNav (mobile)
+│       │   └── LoadingScreen.jsx        ← LoadingScreen + AccessDenied + ErrorScreen
+│       └── features/
+│           ├── QueueMonitor/            ← Feature D1: 30s polling, Tab A + Tab B
+│           ├── Reports/                 ← Feature D2: Period summary, 11 metrics
+│           ├── RunPayroll/              ← Feature D3: 3-step stepper
+│           └── Settings/               ← Feature D4: Toggles + user management
+│
+└── README.md                            ← This file
 ```
 
 ---
 
-## System Architecture — 8 Layers
+## System Architecture
+
+The system has two completely independent execution paths and one shared data layer.
+
+### Layer Model
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ LAYER 1 — Web Tab (React SPA · Extension CLI zip)                   │
-│ Permission shell. Zoho injects user_id at load.                     │
-│ Sidebar nav (desktop) / Bottom tab bar (mobile).                    │
-│ 4 features: feature_settings, feature_run_payroll,                  │
-│             feature_queue_monitor, feature_reports                   │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │ ZOHO.PEOPLE.invoke (Pattern X)
-┌───────────────────────────▼─────────────────────────────────────────┐
-│ LAYER 2 — Gateway Functions (Deluge API layer)                      │
-│ 7 functions. Browser never calls Zoho APIs directly.                │
-│ portalGetSettings, portalSaveSettings, portalCreateMPS,             │
-│ portalUpdateMPS, portalTriggerOrchestrator,                         │
-│ portalGetQueueStatus, portalGetPeriodReport                         │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────────┐
-│ LAYER 3 — Config and Data Stores                                    │
-│ PAYROLL_PORTAL_CONFIG (roles + users + config)                      │
-│ PAYROLL_SETTINGS_JSON · SI_CONFIG_JSON · TAX_CONFIG_JSON            │
-│ TAX_BRACKETS_STD_JSON · TAX_BRACKETS_HI_JSON · ATTENDANCE_RULES_JSON│
-│ Monthly_Payroll_Setup form                                          │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────────┐
-│ LAYER 4 — Batch Engine                                              │
-│ runPayrollOrchestrator: bulk-fetches ALL data once (employees,      │
-│ YTD, attendance). Writes Payroll_Queue with 6 snapshot fields.      │
-│ Workflow A fires processPayrollBatch per batch (time-based).        │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────────┐
-│ LAYER 5 — calculateEmployeePayroll (Merged)                         │
-│ 1 invokeUrl per employee. SI + Tax + Attendance all inline.         │
-│ Receives all 5 config maps as parameters — zero internal fetches.   │
-│ apply_insurance and apply_tax guards. Per-factor att_rules flags.   │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────────┐
-│ LAYER 6 — Batch Payroll Output                                      │
-│ Monthly_Payroll_Record · pr_status=Final · pr_is_final_settlement=false │
-└─────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────┐
-│ LAYER 7 — Termination Path (event-driven · independent of batch)    │
-│ P_Employee status change → onEmployeeTermination →                  │
-│ Payroll_Queue (pq_is_final_settlement=true) → Workflow B →          │
-│ processTerminationRun → 3 standalone calc functions                 │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────────┐
-│ LAYER 8 — Termination Payroll Output                                │
-│ Monthly_Payroll_Record · pr_is_final_settlement=true                │
-│ pr_final_settlement_days_worked populated                           │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ LAYER 1 — Web Tab (React SPA)                                    │
+│ Permission-driven shell. Zoho injects user_id at load.           │
+│ Renders only permitted feature modules. Mobile + desktop.        │
+├──────────────────────────────────────────────────────────────────┤
+│ LAYER 2 — Gateway Functions (Deluge API Layer)                   │
+│ Browser never calls Zoho APIs directly. 7 Deluge functions,      │
+│ one per feature. All credentials stay server-side.               │
+│ Called via: ZOHO.PEOPLE.invoke(fnName, { params })               │
+├──────────────────────────────────────────────────────────────────┤
+│ LAYER 3 — Config and Data Stores                                 │
+│ 7 org variables (Orca_Payroll_Variables group)                   │
+│ 3 custom forms: Monthly_Payroll_Setup, Payroll_Queue,            │
+│                 Monthly_Payroll_Record                            │
+│ 8 custom fields on P_Employee                                    │
+├──────────────────────────────────────────────────────────────────┤
+│ LAYER 4 — Batch Engine                                           │
+│ runPayrollOrchestrator: bulk-fetches all data once,              │
+│ stores 7 snapshot fields per queue record.                       │
+│ processPayrollBatch: reads snapshots locally, calls              │
+│ calculateEmployeePayroll (1 invokeUrl per employee).             │
+├──────────────────────────────────────────────────────────────────┤
+│ LAYER 5 — calculateEmployeePayroll (Merged Calculation)          │
+│ SI + Tax + Attendance all inline. 1 invokeUrl per employee.      │
+│ All config maps passed as parameters — no internal fetches.      │
+├──────────────────────────────────────────────────────────────────┤
+│ LAYER 6 — Regular Payroll Output                                 │
+│ Monthly_Payroll_Record (pr_is_final_settlement = false)          │
+├──────────────────────────────────────────────────────────────────┤
+│ LAYER 7 — Termination Path (Event-driven, independent)           │
+│ P_Employee status change → onEmployeeTermination →               │
+│ Payroll_Queue record → Workflow B → processTerminationRun        │
+│ Uses .workDaysBetween() native Deluge. 3 standalone calc fns.    │
+├──────────────────────────────────────────────────────────────────┤
+│ LAYER 8 — Termination Output                                     │
+│ Monthly_Payroll_Record (pr_is_final_settlement = true)           │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Full Run Cycle — Execution Trace
+## Execution Paths
 
-### Stage 1: HR Creates Setup (Web Tab)
+### Path A — Regular Monthly Payroll Run
+
 ```
-HR selects period → clicks "Create Setup"
-  → portalCreateMPS(payroll_period, holiday_list, working_days)
-    → reads PAYROLL_PORTAL_CONFIG.config.default_holiday_source
-    → if "zoho": fetches Zoho holiday API, runs .workDaysBetween() server-side
-    → if "manual": trusts HR-entered values from webtab JS
-    → duplicate period guard
-    → writes Monthly_Payroll_Setup: mps_status=Ready, mps_payslip_issue_date=today
-    → returns {mps_id, working_days, holidays} to webtab
-  → HR reviews MPS (optional working days override via portalUpdateMPS)
+HR opens web tab (feature_run_payroll)
+  → selects period → clicks "Create Setup"
+  → portalCreateMPS() fires
+      if PORTAL_CONFIG.default_holiday_source = "zoho":
+          fetches Zoho holiday API → .workDaysBetween() server-side
+      if "manual":
+          trusts HR-entered values from webtab JS
+      → writes Monthly_Payroll_Setup (mps_status = Ready)
+  → HR reviews MPS (working days, holiday list)
+  → [optional] working days override → portalUpdateMPS()
   → HR clicks "Run Payroll"
-  → portalTriggerOrchestrator(payroll_period)
-    → pre-flight: MPS must be Ready, lock must be false
-    → calls runPayrollOrchestrator
+  → portalTriggerOrchestrator()
+      pre-flight: MPS status = Ready, lock = false
+      → calls runPayrollOrchestrator(payroll_period)
+
+runPayrollOrchestrator (11 steps):
+  STEP 0  — Global lock check (PAYROLL_SETTINGS_JSON.lock)
+  STEP 1  — Validate MPS exists + status = Ready
+  STEP 2  — Set MPS status → Processing
+  STEP 3  — Derive period_start / period_end
+  STEP 4  — Parse public holidays from MPS → Date List
+  STEP 5  — Read run scope (all / by_department / by_employee)
+  STEP 6  — Paginate P_Employee (leftPad list, 200/call, 20 pages max)
+              Build emp_map: EmployeeID → profile snapshot
+  STEP 7  — Paginate YTD payroll records (leftPad list, 200/call, 50 pages max)
+              Aggregate ytd_gross + ytd_tax_withheld per employee → ytd_map
+  STEP 8  — Paginate bulk attendance API (leftPad list, 100/call, 40 pages max)
+              Nested loop (employee → days) runs HERE ONCE
+              Aggregate 4 fields per employee → att_map
+  STEP 9  — Write Payroll_Queue records (batches of 10)
+              Each record carries 6 snapshot fields (pq_employee_snapshot,
+              pq_ytd_snapshot, pq_absent_days, pq_late_minutes,
+              pq_overtime_hours, pq_ph_days_worked)
+              First record of each batch: pq_queue_at set → fires Workflow A
+              Batches staggered by 3 minutes
+  STEP 10 — Update MPS progress total
+  STEP 11 — Release global lock
+
+Workflow A fires at pq_queue_at (one per batch of 10):
+  → calls processPayrollBatch(batch_number, payroll_period)
+
+processPayrollBatch (per employee in batch):
+  STEP 1  — Read 6 config sources ONCE per batch
+  STEP 2  — Read MPS for working_days + payslip_issue_date
+  STEP 3  — Fetch batch queue records (Pending, this batch_number)
+  STEP 4  — Per-employee loop:
+    4a    — Parse 6 snapshot fields from queue record (zero extra reads)
+    4a-2  — Fetch unpaid leave live (1 invokeUrl per employee)
+            Moved from Orchestrator to reduce Orchestrator runtime
+    4b    — calculateEmployeePayroll (1 invokeUrl — merged SI+Tax+Attendance)
+    4c    — Compute final_net
+    4d    — Rerun check: convert existing regular record to Draft if found
+    4e    — Write Monthly_Payroll_Record (pr_status = Final)
+    4f    — Mark queue record Done / Error
+  STEP 5  — Update MPS counters (read-then-write, concurrent-safe)
+  STEP 6  — Completion check: query remaining Pending → if 0, MPS = Completed
 ```
 
-### Stage 2: Orchestrator (Deluge — STEPS 0–11)
-```
-STEP 0 : Read PAYROLL_SETTINGS_JSON → global lock check → set lock=true
-STEP 1 : Validate MPS exists and status=Ready
-STEP 2 : Set MPS status → Processing
-STEP 3 : Derive period_start, period_end strings
-STEP 4 : Parse mps_public_holidays → public_holiday_dates List<Date>
-STEP 5 : Read scope (all/by_department/by_employee) + selected filters
-STEP 6 : Paginate P_Employee (200/call, leftPad list, 20 pages max)
-          → build all_employees List + emp_map{emp_id → profile snapshot}
-          → profile snapshot: basic_salary, allowances, gross, sub_wage,
-            hire_month, hire_year, emp_si_override, emp_tax_override
-STEP 7 : Paginate Monthly_Payroll_Record Finals (200/call, 50 pages max)
-          → aggregate ytd_gross + ytd_tax_withheld per employee → ytd_map
-STEP 8 : Paginate attendance API (100/call, 40 pages max, leftPad list)
-          → nested loop (employee → days) runs HERE ONCE
-          → aggregates: absent_days, late_minutes, overtime_hours, ph_days_worked
-          → att_map keyed by employee_id
-STEP 9 : Write Payroll_Queue records (batches of 10)
-          → per record: pq_employee_snapshot (JSON), pq_ytd_snapshot (JSON),
-            pq_absent_days, pq_late_minutes, pq_overtime_hours, pq_ph_days_worked
-          → first of each batch: pq_queue_at set → Workflow A fires time-based
-          → batches staggered 3 min apart
-STEP 10: Update MPS mps_progress_total = total_queued
-STEP 11: Release global lock (lock=false)
-```
+### Path B — Employee Termination Run
 
-### Stage 3: Batch Processing (Deluge — per Workflow A trigger)
 ```
-processPayrollBatch(batch_number, payroll_period)
-  STEP 1 : Read all 6 config sources ONCE (SI, tax, attendance, settings)
-  STEP 2 : Read MPS record for working_days and payslip_issue_date
-  STEP 3 : Fetch Pending queue records for this batch_number
-  STEP 4 : Per-employee loop (10 employees max per batch):
-    4a    : Parse 6 snapshot fields from queue record → zero extra API calls
-    4a-2  : Fetch unpaid leave via API (moved from Orchestrator to reduce runtime)
-            → period_start = payroll_period + "-01"
-            → period_end   = first day of next month - 1 day
-    4b    : Resolve effective_apply_insurance and effective_apply_tax
-            (emp_si_override / emp_tax_override override org-level flags)
-    4c    : invokeUrl calculateEmployeePayroll — 1 call covers SI+Tax+Attendance
-    4d    : Compute final_net = gross - deductions + additions (floor 0)
-    4e    : Rerun check → convert existing Final record to Draft if found
-    4f    : Write Monthly_Payroll_Record (pr_status=Final)
-    4g    : Mark queue record Done/Error
-  STEP 5 : Update MPS mps_progress_done and mps_progress_error (read-then-write)
-  STEP 6 : Completion check → query remaining Pending → if 0: MPS=Completed
-```
+HR changes employee status → Terminated or Resigned (in Zoho People)
+  ↓
+Workflow Rule fires → onEmployeeTermination(employee_id)
+  STEP 1 — Read P_Employee → get Date_of_Leaving (exit_date)
+  STEP 2 — Derive payroll period from exit_date
+  STEP 3 — Cancel any existing Pending regular queue record for this period
+           (sets pq_status = Cancelled)
+  STEP 4 — Write termination queue record:
+           pq_is_final_settlement = true
+           pq_exit_date = exit_date
+           pq_status = Pending
+  ↓
+Workflow B fires immediately (on Payroll_Queue create, is_final_settlement = true)
+  → calls processTerminationRun(employee_id, exit_date, queue_id)
 
-### Termination Path (event-driven, independent of batch cycle)
-```
-HR changes P_Employee.Employeestatus → Terminated or Resigned
-  → Workflow Rule fires → onEmployeeTermination(employee_id)
-    → reads Date_of_Leaving → derives exit period
-    → cancels existing Pending regular queue record → pq_status=Cancelled
-    → writes Payroll_Queue: pq_is_final_settlement=true, pq_exit_date, pq_status=Pending
-  → Workflow B fires immediately (on pq_is_final_settlement=true record create)
-    → calls processTerminationRun(employee_id, exit_date, queue_id)
-      STEP 1  : Load PAYROLL_SETTINGS_JSON
-      STEP 2  : Derive current_period from exit_date
-      STEP 3  : Validate MPS exists for exit period
-      STEP 4  : Build public_holiday_dates from MPS
-      STEP 5  : Read P_Employee record directly
-                → resolve effective_apply_insurance / effective_apply_tax
-      STEP 6  : Aggregate YTD from prior Final records
-      STEP 7  : Fix 2 — convert existing regular record to Draft if found
-      STEP 8  : Fetch attendance (month_start → exit_date)
-      STEP 9  : Fetch unpaid leave (month_start → exit_date)
-      STEP 10 : .workDaysBetween(exit_date, {Friday,Saturday}, public_holiday_dates)
-                on month_start.subDay(1) — exclusive-start compensation
-      STEP 11 : Pro-rate gross: (gross / working_days) * days_worked
-      STEP 12 : calculateSocialInsurance (on pro-rated gross)
-                calculatePayroll (on pro-rated gross)
-                calculateAttendanceAdjustments (working_days = days_worked)
-      STEP 13 : Compute final_net
-      STEP 14 : Write Monthly_Payroll_Record (pr_is_final_settlement=true)
-      STEP 15 : Mark queue record Done — function owns queue closure
+processTerminationRun (15 steps):
+  STEP 1  — Read PAYROLL_SETTINGS_JSON (apply_insurance, entity_type, apply_tax)
+  STEP 2  — Derive payroll period from exit_date
+  STEP 3  — Validate MPS exists for exit period (status check skipped)
+  STEP 4  — Parse public holidays from MPS → Date List
+  STEP 5  — Read P_Employee directly (no snapshot — termination path)
+              Resolve per-employee SI/tax overrides
+  STEP 6  — Compute YTD from prior Final records (current year filter)
+  STEP 7  — Convert existing regular record to Draft if found (Fix 2)
+  STEP 8  — Fetch attendance (month_start → exit_date)
+  STEP 9  — Fetch unpaid leave (month_start → exit_date)
+  STEP 10 — Count actual working days via .workDaysBetween()
+              Egyptian weekend: Friday + Saturday
+              month_start.subDay(1) compensates for exclusive-start behavior
+  STEP 11 — Pro-rate gross: (gross / working_days) × days_worked
+  STEP 12 — calculateSocialInsurance (on pro-rated gross, standalone)
+              calculatePayroll (forward annualisation on pro-rated gross, standalone)
+              calculateAttendanceAdjustments (working_days = days_worked, standalone)
+  STEP 13 — Compute final_net (floor at 0)
+  STEP 14 — Write Monthly_Payroll_Record (pr_is_final_settlement = true)
+  STEP 15 — Mark queue record Done (function owns queue closure)
 ```
 
 ---
 
-## Function Registry — All Functions
+## Component Reference
 
-### Core Batch Path
+### Deluge Functions — Core
 
 | Function | Trigger | Inputs | Key Output |
 |---|---|---|---|
 | `runPayrollOrchestrator` | portalTriggerOrchestrator | payroll_period | Payroll_Queue records (N batches) |
-| `processPayrollBatch` | Workflow A (time-based at pq_queue_at) | batch_number, payroll_period | Monthly_Payroll_Record per employee |
-| `calculateEmployeePayroll` | processPayrollBatch (invokeUrl) | 20 params: gross, config maps, attendance integers | Combined result map (SI+Tax+Att) |
+| `processPayrollBatch` | Workflow A (time-based) | batch_number, payroll_period | Monthly_Payroll_Record per employee |
+| `calculateEmployeePayroll` | processPayrollBatch | 20 params (gross, config maps, attendance) | Combined SI + Tax + Attendance result map |
+| `onEmployeeTermination` | Workflow Rule (P_Employee edit) | employee_id | Payroll_Queue termination record |
+| `processTerminationRun` | Workflow B (immediate) | employee_id, exit_date, queue_id | Monthly_Payroll_Record (termination) |
 
-### Standalone Calculation (Termination Path Only)
-
-| Function | Called By | Key Logic |
-|---|---|---|
-| `calculateSocialInsurance` | processTerminationRun | Reads SI_CONFIG_JSON internally. Caps wage at monthly_ceiling. Martyrs fund for Legal Entity only. |
-| `calculatePayroll` | processTerminationRun | Reads TAX_CONFIG_JSON + brackets internally. Forward annualisation: hire year = 13-hire_month, others = 12. |
-| `calculateAttendanceAdjustments` | processTerminationRun | Reads ATTENDANCE_RULES_JSON internally. daily_rate=gross/working_days, hourly=daily/8, minute=hourly/60. |
-
-### Termination Path
-
-| Function | Trigger | Key Differences from Batch |
-|---|---|---|
-| `onEmployeeTermination` | Workflow Rule on P_Employee edit | Cancels existing Pending regular queue records. Writes termination queue record. Does NOT call processTerminationRun directly. |
-| `processTerminationRun` | Workflow B (immediate on queue create) | Pro-rates gross. Reads P_Employee directly (no snapshots). Calls 3 standalones. Owns queue closure at Step 15. |
-
-### Gateway Functions (Web Tab API Layer)
+### Deluge Functions — Gateway (Web Tab API Layer)
 
 | Function | Feature | Reads | Writes |
 |---|---|---|---|
 | `portalGetSettings` | feature_settings | PAYROLL_SETTINGS_JSON, PAYROLL_PORTAL_CONFIG | — |
-| `portalSaveSettings` | feature_settings | Current variable values | PAYROLL_SETTINGS_JSON or PAYROLL_PORTAL_CONFIG |
+| `portalSaveSettings` | feature_settings | — | PAYROLL_SETTINGS_JSON or PAYROLL_PORTAL_CONFIG |
 | `portalCreateMPS` | feature_run_payroll | PAYROLL_PORTAL_CONFIG, Zoho holiday API | Monthly_Payroll_Setup |
-| `portalUpdateMPS` | feature_run_payroll | Monthly_Payroll_Setup | Monthly_Payroll_Setup.mps_working_days |
-| `portalTriggerOrchestrator` | feature_run_payroll | MPS status, lock status | calls runPayrollOrchestrator |
-| `portalGetQueueStatus` | feature_queue_monitor | Monthly_Payroll_Setup, Payroll_Queue | — |
-| `portalGetPeriodReport` | feature_reports | Monthly_Payroll_Record (Final, by period) | — |
+| `portalUpdateMPS` | feature_run_payroll | Monthly_Payroll_Setup | Monthly_Payroll_Setup |
+| `portalTriggerOrchestrator` | feature_run_payroll | Monthly_Payroll_Setup | calls runPayrollOrchestrator |
+| `portalGetQueueStatus` | feature_queue_monitor | Payroll_Queue, Monthly_Payroll_Setup | — |
+| `portalGetPeriodReport` | feature_reports | Monthly_Payroll_Record | — |
+
+### Standalone Calculation Functions
+
+These are called individually by `processTerminationRun`. They are **not** called by `processPayrollBatch` — the batch path uses the merged `calculateEmployeePayroll` instead.
+
+- `calculateSocialInsurance` — Fetches SI_CONFIG_JSON internally. Applies ceiling cap, calculates employee SI (11%), employer SI (18.75%), martyrs fund (0.05% Legal Entity only).
+- `calculatePayroll` — Fetches TAX_CONFIG_JSON + brackets internally. Forward annualisation (remaining months). Bracket lookup (STD ≤ 600,000 EGP / HI > 600,000 EGP).
+- `calculateAttendanceAdjustments` — Fetches ATTENDANCE_RULES_JSON internally. Per-factor enabled flags. Modes: absence, unpaid leave, late, overtime, public holiday (3 modes).
 
 ---
 
-## Org Variable Registry — All 7 Variables
+## Data Model
 
-Group: `Orca_Payroll_Variables`
-Access pattern: `https://people.zoho.com/people/api/v3/variables/{NAME}/view?group=Orca_Payroll_Variables`
+### Org Variables (Group: `Orca_Payroll_Variables`)
 
-### PAYROLL_SETTINGS_JSON
-Runtime engine config. Written by `portalSaveSettings`. Read by Orchestrator and processPayrollBatch.
+All 7 variables are documented in full in `docs/Variables.md`. Summary:
+
+| Variable | Purpose | Updated By |
+|---|---|---|
+| `PAYROLL_SETTINGS_JSON` | Run config: SI/tax flags, scope, lock | portalSaveSettings, Orchestrator (lock), processPayrollBatch (scope clear) |
+| `SI_CONFIG_JSON` | Social insurance rates + annual ceiling | Manual — update ceiling each fiscal year |
+| `TAX_CONFIG_JSON` | Personal exemption annual value | Manual |
+| `TAX_BRACKETS_STD_JSON` | Law 7/2024 standard brackets (≤ 600,000 EGP) | Manual — update if law changes |
+| `TAX_BRACKETS_HI_JSON` | Law 7/2024 high-income tiers (> 600,000 EGP) | Manual — update if law changes |
+| `ATTENDANCE_RULES_JSON` | Per-factor attendance rules + overtime multiplier | Manual (per client policy) |
+| `PAYROLL_PORTAL_CONFIG` | Web tab: roles map + users map + portal config | portalSaveSettings |
+
+### Key Variable Structures
+
 ```json
+// PAYROLL_SETTINGS_JSON
 {
   "active_settings": {
     "social_insurance": { "apply_insurance": true, "entity_type": "Legal Entity" },
-    "income_tax":       { "apply_tax": true },
-    "payroll_run":      { "scope": "all", "selected_department": "", "selected_employees": [], "lock": false }
+    "income_tax": { "apply_tax": true },
+    "payroll_run": {
+      "scope": "all",
+      "selected_department": "",
+      "selected_employees": [],
+      "lock": false
+    }
   }
 }
-```
-- `lock`: set true by Orchestrator on start, false on finish. Blocks concurrent runs.
-- `entity_type`: "Legal Entity" → Martyrs Fund applies. "Sole Proprietorship" → Martyrs Fund = 0.
 
-### SI_CONFIG_JSON
-Social Insurance rates per Law 148/2019. Update `monthly_ceiling` annually.
-```json
-{ "employee_rate": 0.11, "employer_rate": 0.1875, "martyrs_fund_rate": 0.0005, "monthly_ceiling": 12600.00 }
-```
-
-### TAX_CONFIG_JSON
-```json
-{ "personal_exemption_annual": 20000.00 }
-```
-
-### TAX_BRACKETS_STD_JSON
-Applied when annual_net_taxable ≤ 600,000 EGP. Formula: `annual_tax = annual_net × rate − constant`.
-Match rule: `annual_net > min AND (max == null OR annual_net ≤ max)`. First match wins.
-```json
-{
-  "standard_brackets": [
-    { "min": 0,      "max": 40000,  "rate": 0.00,  "constant": 0.00     },
-    { "min": 40000,  "max": 55000,  "rate": 0.025, "constant": 1000.00  },
-    { "min": 55000,  "max": 70000,  "rate": 0.10,  "constant": 5125.00  },
-    { "min": 70000,  "max": 200000, "rate": 0.15,  "constant": 8625.00  },
-    { "min": 200000, "max": 400000, "rate": 0.20,  "constant": 18625.00 },
-    { "min": 400000, "max": 600000, "rate": 0.225, "constant": 28625.00 }
-  ]
-}
-```
-
-### TAX_BRACKETS_HI_JSON
-Applied when annual_net_taxable > 600,000 EGP. Same formula.
-```json
-{
-  "high_income_tiers": [
-    { "min": 600000, "max": 700000, "rate": 0.25,  "constant": 43625.00 },
-    { "min": 700000, "max": 900000, "rate": 0.275, "constant": 61125.00 },
-    { "min": 900000, "max": null,   "rate": 0.30,  "constant": 83625.00 }
-  ]
-}
-```
-
-### ATTENDANCE_RULES_JSON
-Per-factor flags. All independently toggled.
-```json
-{
-  "absence":       { "enabled": true },
-  "unpaid_leave":  { "enabled": true },
-  "late_deduction":{ "enabled": true },
-  "overtime":      { "enabled": true, "multiplier": 1.5 },
-  "public_holiday":{ "enabled": true, "if_worked": "overtime_rate" }
-}
-```
-`public_holiday.if_worked`: "overtime_rate" | "double_rate" | "paid_day" (no extra pay).
-
-### PAYROLL_PORTAL_CONFIG
-Web tab permission model + portal runtime config. Single merged variable.
-```json
+// PAYROLL_PORTAL_CONFIG
 {
   "roles": {
     "admin":   ["feature_settings","feature_run_payroll","feature_queue_monitor","feature_reports"],
     "manager": ["feature_run_payroll","feature_queue_monitor","feature_reports"]
   },
   "users": { "EMP001": "admin", "EMP002": "manager" },
-  "config": { "default_holiday_source": "zoho", "allow_working_days_override": false }
+  "config": {
+    "default_holiday_source": "zoho",
+    "allow_working_days_override": false
+  }
+}
+
+// SI_CONFIG_JSON
+{
+  "employee_rate": 0.11,
+  "employer_rate": 0.1875,
+  "martyrs_fund_rate": 0.0005,
+  "monthly_ceiling": 12600.00
 }
 ```
-- `users`: keyed by Zoho People EmployeeID. Not in map = Access Denied.
-- `default_holiday_source`: "zoho" → server-side .workDaysBetween(). "manual" → HR JS calc.
-- `allow_working_days_override`: shows Override button on MPS review screen.
 
----
+### Forms
 
-## Form Registry — Key Fields
+Full field specifications in `docs/Forms.md`.
 
-Full field specs in `docs/Forms.md`.
+| Form | Fields | Written By | Purpose |
+|---|---|---|---|
+| `P_Employee` | +8 custom fields | HR (manual) | Employee compensation profile |
+| `Monthly_Payroll_Setup` | 10 fields | portalCreateMPS | One record per pay period — controls the run |
+| `Payroll_Queue` | 17 fields | Orchestrator / onEmployeeTermination | One record per employee per run — carries snapshots |
+| `Monthly_Payroll_Record` | 41 fields | processPayrollBatch / processTerminationRun | Final payroll record per employee per period |
 
-### P_Employee — 8 Custom Fields Added
+### P_Employee Custom Fields
 
-| API Name | Type | Notes |
+8 fields added to the native Zoho People employee form:
+
+| Field | Type | Notes |
 |---|---|---|
 | `emp_basic_salary` | Decimal | Required |
-| `emp_housing_allowance` | Decimal | null → 0 |
-| `emp_transport_allowance` | Decimal | null → 0 |
-| `emp_medical_allowance` | Decimal | null → 0 |
-| `emp_other_allowances` | Decimal | null → 0 |
-| `emp_si_subscription_wage` | Decimal | null → falls back to gross |
-| `emp_si_override` | Boolean | null=use org setting, true/false=per-employee |
-| `emp_tax_override` | Boolean | null=use org setting, true/false=per-employee |
+| `emp_housing_allowance` | Decimal | Nullable → 0 |
+| `emp_transport_allowance` | Decimal | Nullable → 0 |
+| `emp_medical_allowance` | Decimal | Nullable → 0 |
+| `emp_other_allowances` | Decimal | Nullable → 0 |
+| `emp_si_subscription_wage` | Decimal | Nullable → falls back to gross |
+| `emp_si_override` | Boolean | Nullable. null = use org setting. true/false = per-employee |
+| `emp_tax_override` | Boolean | Nullable. null = use org setting. true/false = per-employee |
 
-### Monthly_Payroll_Setup — 10 Fields
-Status flow: `Ready → Processing → Completed`
-Key fields: `mps_payroll_period` (YYYY-MM), `mps_working_days`, `mps_public_holidays` (one "YYYY-MM-DD Name" per line), `mps_payslip_issue_date` (auto-set to run day), `mps_progress_total/done/error`.
+### Payroll_Queue Snapshot Fields (Lit 2.0 Addition)
 
-### Payroll_Queue — 17 Fields
-Status values: `Pending` | `Processing` | `Done` | `Error` | `Cancelled`
-Routing fields: `pq_is_final_settlement` (false=regular, true=termination), `pq_queue_at` (trigger record only, Workflow A condition), `pq_exit_date` (termination only), `pq_batch_number`.
-Snapshot fields (null for termination): `pq_employee_snapshot`, `pq_ytd_snapshot`, `pq_absent_days`, `pq_late_minutes`, `pq_overtime_hours`, `pq_ph_days_worked`. Note: `pq_unpaid_leave_days` is NOT stored — fetched live in processPayrollBatch.
+The Orchestrator pre-populates these on every regular queue record. `processPayrollBatch` reads them locally — eliminating per-employee reads in the batch execution window.
 
-### Monthly_Payroll_Record — 41 Fields in 10 Groups
-Groups: Identity (5) · Salary (3) · Social Insurance (6) · Income Tax (5) · Attendance Inputs (6) · Attendance Adjustments (6) · Totals+Net (3) · YTD (2) · Termination (1) · Audit+Rerun (4)
-Key: `pr_is_final_settlement` partitions regular vs termination records throughout the system.
+| Field | Type | Content |
+|---|---|---|
+| `pq_employee_snapshot` | Multi-line (JSON) | basic_salary, total_allowances, gross_salary, subscription_wage, hire_month, hire_year, emp_si_override, emp_tax_override |
+| `pq_ytd_snapshot` | Multi-line (JSON) | ytd_gross, ytd_tax_withheld |
+| `pq_absent_days` | Integer | Aggregated from bulk attendance API |
+| `pq_late_minutes` | Integer | Total late minutes for the period |
+| `pq_overtime_hours` | Decimal | Total OT hours for the period |
+| `pq_ph_days_worked` | Integer | Public holiday days worked |
+
+Note: `pq_unpaid_leave_days` is NOT in the snapshot. Unpaid leave is fetched live per employee inside `processPayrollBatch` (moved from Orchestrator to reduce Orchestrator runtime).
 
 ---
 
-## Workflow Rules — 3 Rules
+## Workflow Rules
 
-Full deployment spec in `docs/Workflows.md`.
+Three rules documented in full in `docs/Workflows.md`.
 
-| Rule | Form | Execute When | Condition | Action | Calls |
-|---|---|---|---|---|---|
-| Employee Termination Trigger | P_Employee | Edit | Employeestatus changed to Terminated OR Resigned | Immediate | `onEmployeeTermination(${EmployeeID})` |
-| Workflow A — Regular Batch | Payroll_Queue | Create | pq_queue_at not empty AND pq_is_final_settlement=false | Time-based at pq_queue_at | `processPayrollBatch(${pq_batch_number}, ${pq_payroll_period})` |
-| Workflow B — Termination | Payroll_Queue | Create | pq_is_final_settlement=true | Immediate | `processTerminationRun(${pq_employee_id}, ${pq_exit_date}, ${ID})` |
+| Rule | Form | Condition | Action | Calls |
+|---|---|---|---|---|
+| Employee Termination Trigger | P_Employee | Employeestatus changed to Terminated or Resigned | Immediate | onEmployeeTermination(employee_id) |
+| Workflow A — Regular Batch | Payroll_Queue | pq_queue_at not empty AND pq_is_final_settlement = false | Time-based at pq_queue_at | processPayrollBatch(batch_number, payroll_period) |
+| Workflow B — Termination | Payroll_Queue | pq_is_final_settlement = true | Immediate | processTerminationRun(employee_id, exit_date, queue_id) |
+
+---
+
+## Web Tab
+
+A React SPA delivered as a Zoho People extension (CLI 1.0.28). Served as a web tab inside Zoho People. Employees have no tab access — controlled at Zoho People tab visibility level.
+
+### Permission Model
+
+```
+On load: Zoho SDK → user identity (employeeId)
+  → read PAYROLL_PORTAL_CONFIG.users → resolve role
+  → if no role: Access Denied screen (stop)
+  → read PAYROLL_PORTAL_CONFIG.roles → resolve feature list
+  → render only permitted nav items and feature modules
+```
+
+### Feature Modules
+
+| Feature Key | Access | Capability |
+|---|---|---|
+| `feature_settings` | Admin only | Payroll settings, portal config, user management |
+| `feature_run_payroll` | Admin + Manager | MPS creation, working days review, run trigger, live progress |
+| `feature_queue_monitor` | Admin + Manager | Tab A: regular queue. Tab B: termination queue. 30s polling. |
+| `feature_reports` | Admin + Manager | Period summary: 11 financial aggregates. No export (v1). |
+
+### Key Technical Decisions — Web Tab
+
+- **SDK Pattern:** ZOHO.PEOPLE.invoke(fnName, { params }) — Pattern X
+- **Base URL:** https://people.zoho.com (hardcoded)
+- **Identity:** ZOHO.embeddedApp.on("PageLoad") → data.employeeId
+- **DEV_MODE flag:** Set `DEV_MODE = true` in `webtab/src/hooks/useGateway.js` for local development with full mock data. Set `false` before packaging.
+- **Mobile nav:** Bottom tab bar on screens < 768px. Sidebar on desktop.
+- **Data layer:** All 7 gateway functions have complete mock responses in `useGateway.js`.
+
+### Local Development
+
+```bash
+cd webtab
+npm install
+npm run dev       # serves at http://localhost:5173 with mock data
+```
+
+### Production Build
+
+```bash
+# Set DEV_MODE = false in src/hooks/useGateway.js first
+npm run build     # outputs to webtab/app/
+zet pack          # Zoho CLI generates zip
+# Upload via Zoho People → Setup → Extensions
+# Assign tab visibility to Admin and Manager profiles only
+```
 
 ---
 
 ## Key Design Decisions
 
-### 1. Queue Architecture (Fundamental)
-Zoho Deluge has a 5-minute execution timeout. Processing 50+ employees in one call is impossible. The queue-based design — Orchestrator builds queue records, Workflow A fires batches of 10 — is what makes the system viable. Without this, the system cannot function at any meaningful scale.
+### 1. Merged calculateEmployeePayroll — 1 invokeUrl per employee (batch path)
 
-### 2. Merged calculateEmployeePayroll (Batch Path Only)
-Before: 3 separate invokeUrl calls per employee (calculateSocialInsurance, calculatePayroll, calculateAttendanceAdjustments), each also fetching their own config internally = 8 invokeUrls per employee.
-After: 1 invokeUrl. All 3 calculation blocks merged inline. All 5 config maps passed as parameters from processPayrollBatch which reads them once per batch. `apply_insurance` and `apply_tax` guards preserved. Per-factor `att_rules` flags preserved.
-**Termination path is unaffected** — 3 standalone functions remain for processTerminationRun.
+The batch path had 3 standalone function calls per employee (calculateSocialInsurance, calculatePayroll, calculateAttendanceAdjustments), each of which internally fetched its own config via invokeUrl. Total: 8 invokeUrl calls per employee.
 
-### 3. Orchestrator Bulk Fetch
-All data captured once before any batch fires: P_Employee paginated (200/call), YTD Finals paginated (200/call), attendance bulk API (100/call). Stored as snapshot fields in each queue record. processPayrollBatch reads locally — zero extra API calls per employee for these sources.
+`calculateEmployeePayroll` merges all three blocks inline. All 5 config maps are passed as parameters by `processPayrollBatch` which reads them once per batch. Result: 1 invokeUrl per employee.
 
-### 4. Leave Fetch in processPayrollBatch (Not Orchestrator)
-Originally N sequential leave API calls (one per employee) were in the Orchestrator. Moved to processPayrollBatch (Step 4a-2) to reduce Orchestrator runtime. 10 leave calls per batch, distributed across batches running in parallel — no longer blocking the single Orchestrator window.
+The three standalone functions remain unchanged and are still used by `processTerminationRun` individually. Termination is always 1 employee — the N×8 problem does not exist there.
 
-### 5. No while() — leftPad List Pattern
-Deluge has no while() function. Pagination implemented with:
+### 2. Orchestrator bulk-fetch architecture
+
+All data that the batch processor needs is fetched once in the Orchestrator and stored in the queue record:
+- P_Employee profiles: captured in the same pagination pass that builds the employee list
+- YTD records: one paginated query aggregated in-memory per employee
+- Attendance: one bulk API call with a nested aggregation loop (runs once in Orchestrator, never in batch)
+- Unpaid leave: fetched per employee inside `processPayrollBatch` (moved from Orchestrator to reduce Orchestrator runtime — distributed across parallel batch windows)
+
+### 3. No while() loops — leftPad list pattern
+
+Deluge has no `while()` function. All pagination uses this pattern:
+
 ```
 page_index = 0;
 page_list  = leftPad(" ", N).replaceAll(" ", ",").removeLastOccurence(",").toList();
 for each item in page_list {
     sindex = (page_index * pageSize) + offset;
-    fetch → if null/empty { break; }
+    // fetch
+    if(null or empty) { break; }
     page_index = page_index + 1;
-    process → if size < pageSize { break; }
+    // process
+    if(size < pageSize) { break; }
 }
 ```
-Applied to STEP 6 (P_Employee, 20 pages), STEP 7 (YTD, 50 pages), STEP 8 (Attendance, 40 pages).
 
-### 6. workDaysBetween() Native Deluge
-Egyptian weekend = Friday + Saturday (passed explicitly — Deluge default is Sat+Sun).
-`workDaysBetween` is exclusive of start date. Compensation: `month_start.subDay(1).workDaysBetween(exit_date, {"Friday","Saturday"}, public_holidays)`.
-Replaces the retired `count_working_days` custom function in the termination path.
+`leftPad(" ", N)` creates N spaces → `.replaceAll(" ", ",")` → N commas → `.removeLastOccurence(",")` → `.toList()` → N empty slots. The external `page_index` is the actual counter.
 
-### 7. Always-Queue Termination Routing
-`onEmployeeTermination` always writes a Payroll_Queue record. Workflow B fires immediately. `processTerminationRun` owns queue closure (Step 15, marks pq_status=Done). No Scheduler involvement. No immediate-mode branch.
+### 4. Always-queue termination routing
 
-### 8. Gateway Pattern — Deluge as API Layer
-Browser never calls Zoho APIs directly. All data through Deluge gateway functions. SDK invocation: `ZOHO.PEOPLE.invoke("functionName", { params: {} })` (Pattern X). Credentials stay server-side. DEV_MODE flag in useGateway.js enables full mock operation without Zoho connection.
+`onEmployeeTermination` always writes a queue record. It never calls `processTerminationRun` directly. Workflow B fires on the queue record create. `processTerminationRun` owns its own queue closure (pq_status = Done at Step 15).
 
-### 9. Per-Employee SI/Tax Overrides
-Org-level flags (`apply_insurance`, `apply_tax`, `entity_type`) apply globally. Per-employee overrides stored in `emp_si_override` and `emp_tax_override` on P_Employee. Null = use org setting. Resolution: `effective = (override != null) ? override : org_setting`. Captured in `pq_employee_snapshot` by Orchestrator — processPayrollBatch never re-reads P_Employee.
+### 5. workDaysBetween() native Deluge for termination
 
-### 10. Forward Annualisation for Tax
-Tax is computed on an annualised basis. Hire year: `months_remaining = 13 - hire_month`. All other years: `months_remaining = 12`. `annual_net = monthly_net × months_remaining`. Tax bracket applied to `annual_net`. `monthly_tax = annual_tax / months_remaining`. Mid-year salary changes accumulate silently until December — known and accepted gap for pilot.
+`processTerminationRun` uses Deluge's native `.workDaysBetween()` for partial-month day counting. Egyptian weekend passed explicitly as `{"Friday", "Saturday"}`. `month_start.subDay(1)` compensates for the function's exclusive-start behavior to include the first of the month.
 
-### 11. PAYROLL_PORTAL_CONFIG — Single Merged Variable
-Three logical sections (roles, users, config) merged into one org variable. Was originally designed as two variables. Single variable reduces read operations in gateway functions.
+### 6. Per-employee SI and tax override flags
 
-### 12. MPS Payslip Issue Date = Run Day
-`mps_payslip_issue_date` is auto-set to `zoho.currenttime` inside `portalCreateMPS`. Not HR-entered. Copied into every `pr_payslip_issue_date` for the period.
-
----
-
-## Deluge Patterns Used Throughout
-
-### Date Safety (Fix 8)
-Always call `.toDate()` before comparing or using date values. String vs Date type mismatches caused real runtime bugs. Public holiday comparison: `public_holiday_dates.contains(day_key.toDate())`.
-
-### Null Allowances (Fix A)
-`ifnull(emp.get("fieldName"), "0").toDecimal()` on all allowance fields. Null treated as 0.
-
-### Config Map Serialization
-Config Maps passed via invokeUrl POST as `.toString()` (JSON string). Receiving function calls `.toMap()` at entry: `si_config = ifnull(si_config, "{}").toString().toMap()`. Empty string guard handles disabled features.
-
-### Rerun Record Conversion (Fix 2)
-When a new run overwrites an existing Final record: existing record → `pr_status=Draft, pr_is_rerun=true, pr_run_sequence+=1`. New record written as Final.
-
-### Concurrent Batch Safety (MPS Counters)
-processPayrollBatch reads MPS fresh before incrementing progress counters. Multiple batches may run near-simultaneously — read-then-write prevents counter overwrites.
-
----
-
-## Web Tab Architecture
-
-### Permission Resolution at Load
+`emp_si_override` and `emp_tax_override` on P_Employee allow per-employee exceptions to the org-level `apply_insurance` and `apply_tax` settings. Null means use the org setting; true/false overrides it. Resolution:
 ```
-1. ZOHO.embeddedApp.on("PageLoad") → user.employeeId
-2. portalGetSettings() → PAYROLL_PORTAL_CONFIG
-3. role = config.users[employeeId]     → null = Access Denied
-4. features = config.roles[role]       → permitted feature list
-5. Render sidebar/bottom nav with permitted features only
+effective = (override != null) ? override : org_setting
 ```
+Both overrides are captured in the Orchestrator's employee snapshot — `processPayrollBatch` never re-reads P_Employee.
 
-### Mobile vs Desktop
-- Desktop: left sidebar (icons + labels, collapsible)
-- Mobile < 768px: bottom tab bar (4 icons, always visible)
-- Queue monitor: card list (not tables) on all screen sizes
-- Run payroll: 3-step stepper with full-width steps
+### 7. Gateway pattern — Deluge as controlled API layer
 
-### feature_run_payroll — 3-Step Flow
-- Step 1: Period picker → "Create Setup" button → portalCreateMPS
-- Step 2: MPS review (working days + holidays) → optional override → "Run Payroll" button → portalTriggerOrchestrator
-- Step 3: Live progress polling every 30 seconds → done/pending/error counters
+The React web tab never calls Zoho APIs directly. All data access goes through 7 Deluge gateway functions. This keeps OAuth credentials server-side, makes each gateway function independently testable, and isolates the frontend from Zoho API changes.
 
-### DEV_MODE
-`DEV_MODE = true` in `webtab/src/hooks/useGateway.js`. All 7 gateway functions return realistic mock data. Set to `false` before packaging with `zet pack`. Mock identity: EMP001 = admin.
+### 8. Single merged portal config variable
 
-### Build and Deploy
-```bash
-cd webtab
-npm install
-npm run build        # → webtab/app/
-# Set DEV_MODE = false in src/hooks/useGateway.js
-zet pack             # → ZIP for Zoho Extension upload
-# Upload via Zoho People → Setup → Extensions
-# Assign tab to HR Admin + Manager profiles only
-```
+PAYROLL_PORTAL_CONFIG contains three logical sections: roles map (role → feature list), users map (employeeId → role), and config (holiday source, override flag). Merged into one variable to simplify reads and writes.
+
+### 9. Forward annualisation tax model
+
+Tax is calculated using forward annualisation — the employee's current monthly taxable income is annualised based on remaining months in the year (or full 12 for employees hired before the current year). This is the approach chosen for the pilot. Known limitation: mid-year salary changes are not reconciled until December (December reconciliation is out of scope for Lit v1).
 
 ---
 
-## Known Gaps — Pilot Scope
+## Legal Compliance
 
-These are acknowledged limitations accepted for the initial pilot deployment:
-
-| Gap | Impact | Notes |
-|---|---|---|
-| No salary revision workflow | Mid-year changes accumulate silently until December | Forward annualisation design consequence |
-| No payslip distribution | Employees cannot see payslips | No feature_payslip in Lit scope |
-| No bank disbursement | Net salary calculated but not disbursed | Deferred |
-| No reporting module (export) | Period report is view-only in browser | CSV/PDF export deferred |
-| No December annual reconciliation | Year-end tax true-up not implemented | Dropped in Lit scope |
-| No Final Settlement | Gratuity/EOSC not calculated on termination | Dropped in Lit scope |
-| Org-level SI/Tax flags | Per-employee overrides added but complex cases (foreign workers, etc.) may need extension | Pilot acceptable |
-| getRecords pagination | zoho.people.getRecords with sIndex/limit support must be verified against actual Zoho People API version | Verify before go-live |
+- **Egyptian Income Tax Law 7/2024:** Implemented via `TAX_BRACKETS_STD_JSON` (standard brackets ≤ 600,000 EGP) and `TAX_BRACKETS_HI_JSON` (high-income tiers > 600,000 EGP). Personal exemption: EGP 20,000/year.
+- **Egyptian Social Insurance Law 148/2019:** Implemented via `SI_CONFIG_JSON`. Employee rate: 11%. Employer rate: 18.75%. Martyrs Fund: 0.05% (Legal Entity only). Monthly ceiling is updated annually per the published schedule.
 
 ---
 
-## Compliance Reference
+## Known Pilot Gaps
 
-| Law | Coverage |
+These are acknowledged limitations accepted for the initial deployment:
+
+- No salary revision workflow — changes to emp_basic_salary take effect immediately on next run
+- No payslip distribution — payroll records are viewable in the web tab but not sent to employees
+- No bank disbursement layer — net salary figures are calculated but not transmitted to any payment system
+- No reporting module export — CSV/PDF export is deferred (v1 web tab shows metrics in-browser only)
+- No December annual reconciliation — forward annualisation accumulates silently; mid-year salary changes are not corrected until manually handled
+- Per-employee SI/tax override has no UI — must be set directly on the P_Employee form field
+
+---
+
+## Runtime Constraints
+
+Zoho Deluge has a 5-minute function execution timeout. The architecture is designed around this constraint:
+
+- The Orchestrator runs once and writes queue records — it does not do per-employee calculations
+- Each batch of 10 employees runs in its own execution window (one Workflow A trigger per batch)
+- Batches are staggered by 3 minutes to prevent concurrent execution
+- The merged `calculateEmployeePayroll` reduces invokeUrl calls from 8 to 1 per employee, leaving headroom well within the 5-minute window for a batch of 10
+
+---
+
+## Technology Stack
+
+| Layer | Technology |
 |---|---|
-| Egyptian Income Tax Law 7/2024 | Tax brackets (STD and HI), personal exemption (EGP 20,000), forward annualisation |
-| Social Insurance Law 148/2019 | Employee rate (11%), employer rate (18.75%), martyrs fund (0.05%), monthly ceiling (EGP 12,600) |
+| Payroll engine | Zoho Deluge scripting language |
+| Platform | Zoho People (custom extension) |
+| Forms | Zoho People custom forms |
+| Config | Zoho People org variables |
+| Web tab | React 18 + Tailwind CSS 3 + Vite 4 |
+| Extension delivery | Zoho Extension CLI 1.0.28 |
+| SDK | Zoho People JS SDK (ZPWidget.js) |
+| Source control | GitHub |
 
-**Annual maintenance required:**
-- Update `SI_CONFIG_JSON.monthly_ceiling` each fiscal year (ceiling changes per Law 148/2019 schedule)
-- Update tax brackets if Tax Law changes
-
----
-
-## Build Status
-
-| Phase | Deliverable | Status |
-|---|---|---|
-| 1 | 6 org variables | Specified + documented |
-| 2 | P_Employee 8 custom fields | Specified + documented |
-| 3 | 3 forms (76 fields) | Specified + documented |
-| 4 | calculateSocialInsurance, calculatePayroll, calculateAttendanceAdjustments | Skipped (implement separately in Zoho) |
-| 5 | onEmployeeTermination | In repo |
-| 6 | runPayrollOrchestrator + processPayrollBatch | In repo |
-| 7 | processTerminationRun | In repo |
-| 8 | Workflow A + Workflow B | Deployment spec in docs/Workflows.md |
-| A | PAYROLL_PORTAL_CONFIG org variable | Specified + documented |
-| B | 7 gateway functions | In repo |
-| C | Webtab shell | In repo |
-| D1–D4 | 4 feature modules | In repo |
-| E | Extension package + deploy | Ready — flip DEV_MODE, npm run build, zet pack |
-
-**calculateEmployeePayroll depends on the 3 standalone functions being deployed first in Zoho People as custom functions before the batch path can run.**
