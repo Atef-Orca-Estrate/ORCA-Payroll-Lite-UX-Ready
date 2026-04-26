@@ -112,3 +112,14 @@ Additionally, a dead `users` state declaration was present — declared but neve
 - New payroll run pinned at top of runs list
 - Records panel: filter tabs + expandable rows with Earnings / Deductions / Result
 - Full dark mode coverage
+
+## [2026-04-27 | 04] feat: dark mode toggle in Settings — Appearance section
+
+**Why:** Users need a way to switch between light and dark themes from within the portal UI.
+
+**File:** `webtab/src/features/Settings/index.jsx`
+- Imported `useTheme` from `ThemeContext`
+- Added standalone "Appearance" section above Payroll Settings
+- Toggle wired directly to `theme` / `toggleTheme` from ThemeContext
+- Applies instantly on click — no Save button, no gateway call, no API consumption
+- Persisted to `localStorage` via ThemeContext automatically

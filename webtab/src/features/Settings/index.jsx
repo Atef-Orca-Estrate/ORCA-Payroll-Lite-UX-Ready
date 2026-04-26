@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth, useToast } from '../../context/AuthContext';
 import { useGateway }        from '../../hooks/useGateway';
+import { useTheme }          from '../../context/ThemeContext';
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 function Toggle({ value, onChange, label, sub }) {
@@ -86,6 +87,8 @@ export default function Settings() {
   const { auth, setAuth } = useAuth();
   const gateway = useGateway();
   const { show: showToast } = useToast();
+
+  const { theme, toggleTheme } = useTheme();
 
   // ── Payroll settings state ────────────────────────────────────────────────
   const ps0 = auth.payrollSettings || {};
@@ -182,6 +185,27 @@ export default function Settings() {
   return (
     <div className="max-w-lg mx-auto">
       <h1 className="text-lg font-semibold text-gray-900 mb-5">Settings</h1>
+
+      {/* Appearance — local preference, instant apply, no gateway call */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+          <h2 className="text-sm font-semibold text-gray-700">Appearance</h2>
+        </div>
+        <div className="px-4 py-1">
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Dark mode</p>
+              <p className="text-xs text-gray-400 mt-0.5">Saved locally — no sync required</p>
+            </div>
+            <button
+              onClick={toggleTheme}
+              className={`w-11 h-6 rounded-full transition-colors relative ${theme === 'dark' ? 'bg-blue-600' : 'bg-gray-300'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${theme === 'dark' ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Payroll Settings */}
       <Section title="Payroll Settings" onSave={savePayrollSettings} saving={savingPS}>
