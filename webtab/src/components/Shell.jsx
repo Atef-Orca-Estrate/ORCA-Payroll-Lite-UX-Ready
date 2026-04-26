@@ -83,20 +83,20 @@ export default function Shell() {
   const ActiveComponent = activeFeature ? FEATURE_COMPONENTS[activeFeature] : null;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Desktop sidebar */}
       <Sidebar active={activeFeature} onNavigate={setActiveFeature} />
 
       {/* Main content area — padded at bottom for mobile nav */}
       <main className="flex-1 min-w-0 pb-20 md:pb-0">
         {/* Mobile page header */}
-        <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between">
           <div>
             <div className="text-xs font-semibold text-blue-600 tracking-widest uppercase">Orca</div>
-            <div className="text-sm font-semibold text-gray-900">Payroll Portal</div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Payroll Portal</div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-700">
+            <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-semibold text-blue-700 dark:text-blue-300">
               {auth.employeeId?.slice(0, 2).toUpperCase()}
             </div>
           </div>
@@ -107,7 +107,7 @@ export default function Shell() {
           {ActiveComponent ? (
             <ActiveComponent />
           ) : (
-            <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+            <div className="flex items-center justify-center h-64 text-gray-400 dark:text-gray-600 text-sm">
               Select a feature to get started
             </div>
           )}

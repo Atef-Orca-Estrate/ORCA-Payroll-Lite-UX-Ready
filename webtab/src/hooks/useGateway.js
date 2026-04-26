@@ -7,7 +7,35 @@ const BASE_URL = 'https://people.zoho.com';
 
 // ─── MOCK DATA ───────────────────────────────────────────────────────────────
 const MOCKS = {
-  portalGetSettings: {
+  portalListRuns: {
+    status: 'success',
+    runs: [
+      { period: '2026-04', status: 'Processing', employees: 10, working_days: 22, batches: 2, done: 3, error: 2, pending: 5 },
+      { period: '2026-03', status: 'Completed',  employees: 43, working_days: 21, batches: 5, done: 43, error: 0, pending: 0 },
+      { period: '2026-02', status: 'Completed',  employees: 43, working_days: 20, batches: 5, done: 43, error: 0, pending: 0 },
+      { period: '2026-01', status: 'Completed',  employees: 41, working_days: 22, batches: 5, done: 40, error: 1, pending: 0 },
+      { period: '2025-12', status: 'Completed',  employees: 41, working_days: 23, batches: 5, done: 41, error: 0, pending: 0 }
+    ]
+  },
+
+  portalGetPayrollRecords: {
+    status: 'success',
+    period: '2026-04',
+    records: [
+      { employee_id: 'EMP001', status: 'Done',       pr_basic_salary: 30000, pr_total_allowances: 11000, pr_gross_salary: 41000, pr_employee_si_deduction: 3300, pr_martyrs_fund: 20.5, pr_absence_deduction: 0,    pr_unpaid_leave_deduction: 0,   pr_late_deduction: 0,   pr_total_deductions: 6120, pr_net_salary: 34200, pr_monthly_tax_withheld: 2800, pr_ytd_tax_withheld: 8400,  error: '' },
+      { employee_id: 'EMP002', status: 'Done',       pr_basic_salary: 25000, pr_total_allowances: 9000,  pr_gross_salary: 34000, pr_employee_si_deduction: 2750, pr_martyrs_fund: 17,   pr_absence_deduction: 0,    pr_unpaid_leave_deduction: 0,   pr_late_deduction: 150, pr_total_deductions: 5500, pr_net_salary: 28500, pr_monthly_tax_withheld: 2100, pr_ytd_tax_withheld: 6300,  error: '' },
+      { employee_id: 'EMP003', status: 'Done',       pr_basic_salary: 38000, pr_total_allowances: 12200, pr_gross_salary: 50200, pr_employee_si_deduction: 4020, pr_martyrs_fund: 25.1, pr_absence_deduction: 0,    pr_unpaid_leave_deduction: 0,   pr_late_deduction: 0,   pr_total_deductions: 8200, pr_net_salary: 42000, pr_monthly_tax_withheld: 3800, pr_ytd_tax_withheld: 11400, error: '' },
+      { employee_id: 'EMP004', status: 'Error',      pr_basic_salary: null,  pr_total_allowances: null,  pr_gross_salary: null,  pr_employee_si_deduction: null, pr_martyrs_fund: null, pr_absence_deduction: null, pr_unpaid_leave_deduction: null, pr_late_deduction: null, pr_total_deductions: null, pr_net_salary: null, pr_monthly_tax_withheld: null, pr_ytd_tax_withheld: null, error: 'Missing emp_basic_salary field' },
+      { employee_id: 'EMP005', status: 'Error',      pr_basic_salary: null,  pr_total_allowances: null,  pr_gross_salary: null,  pr_employee_si_deduction: null, pr_martyrs_fund: null, pr_absence_deduction: null, pr_unpaid_leave_deduction: null, pr_late_deduction: null, pr_total_deductions: null, pr_net_salary: null, pr_monthly_tax_withheld: null, pr_ytd_tax_withheld: null, error: 'Attendance API returned status 1' },
+      { employee_id: 'EMP006', status: 'Processing', pr_basic_salary: null,  pr_total_allowances: null,  pr_gross_salary: null,  pr_employee_si_deduction: null, pr_martyrs_fund: null, pr_absence_deduction: null, pr_unpaid_leave_deduction: null, pr_late_deduction: null, pr_total_deductions: null, pr_net_salary: null, pr_monthly_tax_withheld: null, pr_ytd_tax_withheld: null, error: '' },
+      { employee_id: 'EMP007', status: 'Processing', pr_basic_salary: null,  pr_total_allowances: null,  pr_gross_salary: null,  pr_employee_si_deduction: null, pr_martyrs_fund: null, pr_absence_deduction: null, pr_unpaid_leave_deduction: null, pr_late_deduction: null, pr_total_deductions: null, pr_net_salary: null, pr_monthly_tax_withheld: null, pr_ytd_tax_withheld: null, error: '' },
+      { employee_id: 'EMP008', status: 'Pending',    pr_basic_salary: null,  pr_total_allowances: null,  pr_gross_salary: null,  pr_employee_si_deduction: null, pr_martyrs_fund: null, pr_absence_deduction: null, pr_unpaid_leave_deduction: null, pr_late_deduction: null, pr_total_deductions: null, pr_net_salary: null, pr_monthly_tax_withheld: null, pr_ytd_tax_withheld: null, error: '' },
+      { employee_id: 'EMP009', status: 'Pending',    pr_basic_salary: null,  pr_total_allowances: null,  pr_gross_salary: null,  pr_employee_si_deduction: null, pr_martyrs_fund: null, pr_absence_deduction: null, pr_unpaid_leave_deduction: null, pr_late_deduction: null, pr_total_deductions: null, pr_net_salary: null, pr_monthly_tax_withheld: null, pr_ytd_tax_withheld: null, error: '' },
+      { employee_id: 'EMP010', status: 'Pending',    pr_basic_salary: null,  pr_total_allowances: null,  pr_gross_salary: null,  pr_employee_si_deduction: null, pr_martyrs_fund: null, pr_absence_deduction: null, pr_unpaid_leave_deduction: null, pr_late_deduction: null, pr_total_deductions: null, pr_net_salary: null, pr_monthly_tax_withheld: null, pr_ytd_tax_withheld: null, error: '' }
+    ]
+  },
+
+
     status: 'success',
     payroll_settings: {
       apply_insurance: true,

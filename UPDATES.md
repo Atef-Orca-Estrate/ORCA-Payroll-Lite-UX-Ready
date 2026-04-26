@@ -1,4 +1,57 @@
-# Branch Update Log — fix/toast-and-settings-users
+# Branch Update Log — feature/dark-theme-and-run-payroll
+
+All times UTC. Each entry documents what changed, why, and the exact modification made.
+
+---
+
+## [2026-04-27 | 01] feat: dark mode infrastructure
+
+**Why:** Dark theme support requires a class-based Tailwind strategy and a persistent context before any component dark variants can be applied.
+
+**Files changed:**
+
+`webtab/tailwind.config.js`
+```diff
++ darkMode: 'class',
+```
+
+`webtab/src/context/ThemeContext.jsx` — new file
+- `ThemeProvider` reads preference from `localStorage` on init (no API call)
+- Applies/removes `dark` class on `document.documentElement`
+- Exposes `theme` and `toggleTheme` via `useTheme` hook
+- Persists preference back to `localStorage` on change
+
+`webtab/src/App.jsx`
+```diff
++ import { ThemeProvider } from './context/ThemeContext';
+  // ThemeProvider wraps AuthProvider so dark class is available to all children
+```
+
+`webtab/src/index.css`
+```diff
+- body { @apply bg-gray-50 text-gray-900; }
++ body { @apply bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100; }
+```
+
+`webtab/src/components/Shell.jsx` — dark variants added to all layout surfaces
+
+`webtab/src/components/Nav.jsx` — dark variants added to Sidebar and BottomNav
+
+`webtab/src/components/LoadingScreen.jsx` — dark variants added to LoadingScreen, AccessDenied, ErrorScreen
+
+---
+
+## [2026-04-27 | 02] feat: gateway mocks for portalListRuns and portalGetPayrollRecords
+
+**Why:** RunPayroll rebuild (Phase 3) requires two new gateway functions. Mocks are added now so the component can be built and tested in DEV_MODE without any Zoho API dependency.
+
+**File:** `webtab/src/hooks/useGateway.js`
+
+- `portalListRuns` — returns all MPS records with period, status, employee count, working days, batch count, and progress counters (done/error/pending). Fetched once on RunPayroll mount, cached client-side.
+- `portalGetPayrollRecords` — returns per-employee `pr_*` fields for a given period: basic salary, allowances, gross, SI, Martyrs Fund, absence/unpaid leave/late deductions, total deductions, net salary, monthly tax withheld, YTD tax withheld. Fetched on first run selection only — subsequent selections of the same period use the cached result.
+
+---
+
 
 All times UTC. Each entry documents what changed, why, and the exact modification made.
 
