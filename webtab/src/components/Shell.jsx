@@ -82,15 +82,17 @@ export default function Shell() {
   // ── Main Layout ──────────────────────────────────────────────────────────
   const ActiveComponent = activeFeature ? FEATURE_COMPONENTS[activeFeature] : null;
 
+  const isRunPayroll = activeFeature === 'feature_run_payroll';
+
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
       {/* Desktop sidebar */}
       <Sidebar active={activeFeature} onNavigate={setActiveFeature} />
 
-      {/* Main content area — padded at bottom for mobile nav */}
-      <main className="flex-1 min-w-0 pb-20 md:pb-0">
+      {/* Main content — flex column so RunPayroll can fill remaining height */}
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden pb-16 md:pb-0">
         {/* Mobile page header */}
-        <div className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between">
+        <div className="md:hidden flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between">
           <div>
             <div className="text-xs font-semibold text-blue-600 tracking-widest uppercase">Orca</div>
             <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Payroll Portal</div>
@@ -102,8 +104,14 @@ export default function Shell() {
           </div>
         </div>
 
-        {/* Feature content */}
-        <div className="p-4 md:p-6">
+        {/* Feature content
+            RunPayroll: fixed height, no scroll — component manages its own overflow
+            All others: natural scroll */}
+        <div className={
+          isRunPayroll
+            ? 'flex-1 min-h-0 overflow-hidden flex flex-col p-4 md:p-6'
+            : 'flex-1 overflow-y-auto p-4 md:p-6'
+        }>
           {ActiveComponent ? (
             <ActiveComponent />
           ) : (

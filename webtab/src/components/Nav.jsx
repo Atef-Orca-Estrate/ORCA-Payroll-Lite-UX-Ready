@@ -45,7 +45,7 @@ export function Sidebar({ active, onNavigate }) {
   const visibleFeatures = FEATURE_ORDER.filter(f => auth.features.includes(f));
 
   return (
-    <aside className="hidden md:flex flex-col w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 min-h-screen">
+    <aside className="hidden md:flex flex-col w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
       {/* Logo / header */}
       <div className="px-5 py-5 border-b border-gray-100 dark:border-gray-800">
         <div className="text-xs font-semibold text-blue-600 tracking-widest uppercase">Orca</div>

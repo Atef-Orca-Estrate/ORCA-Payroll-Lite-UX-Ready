@@ -89,3 +89,26 @@ Additionally, a dead `users` state declaration was present — declared but neve
 ```
 
 ---
+
+## [2026-04-27 | 03] feat: Shell height chain + RunPayroll full rebuild
+
+**Why:** RunPayroll requires a fixed-height 3-panel layout with no content overflow. Shell needed a proper viewport height anchor before RunPayroll could enforce its own overflow rules.
+
+**File:** `webtab/src/components/Shell.jsx`
+- Outer div: `min-h-screen` → `h-screen overflow-hidden` — anchors height chain to viewport
+- `main`: added `flex flex-col overflow-hidden`
+- Content wrapper: context-aware — RunPayroll gets `flex-1 min-h-0 overflow-hidden flex flex-col`, all other features get `flex-1 overflow-y-auto` (natural scroll preserved)
+
+**File:** `webtab/src/components/Nav.jsx`
+- Removed `min-h-screen` from Sidebar — parent is now `h-screen`
+
+**File:** `webtab/src/features/RunPayroll/index.jsx` — full replacement
+- 3-panel layout: left 260px (50/50 wizard + runs list), right flex-1 (records)
+- Full height chain: every card uses `flex-1 min-h-0 overflow-hidden` — no boundary breaks
+- `portalListRuns` fetched once on mount, cached for full session
+- `portalGetPayrollRecords` cached per period — re-selecting same period = zero API calls
+- Polling only when run status is Processing; single call per tick; stops on Completed
+- 4-stage wizard driven by selected run status
+- New payroll run pinned at top of runs list
+- Records panel: filter tabs + expandable rows with Earnings / Deductions / Result
+- Full dark mode coverage
