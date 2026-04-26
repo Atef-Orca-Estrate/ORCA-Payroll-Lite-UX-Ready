@@ -47,7 +47,7 @@ export function ToastProvider({ children }) {
             className={`px-4 py-2.5 rounded-lg text-white text-sm shadow-lg max-w-xs animate-fade-in
               ${t.type === 'error' ? 'bg-red-500' : t.type === 'warning' ? 'bg-amber-500' : 'bg-green-600'}`}
           >
-            {message || t.message}
+            {t.message}
           </div>
         ))}
       </div>

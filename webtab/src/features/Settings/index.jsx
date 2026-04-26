@@ -102,16 +102,13 @@ export default function Settings() {
   const [savingPC,        setSavingPC]       = useState(false);
 
   // ── User management state ─────────────────────────────────────────────────
-  const [users,     setUsers]     = useState(auth.payrollSettings ? {} : {}); // loaded from gateway mock
   const [newEmpId,  setNewEmpId]  = useState('');
   const [newRole,   setNewRole]   = useState('manager');
   const [savingUser,setSavingUser]= useState(false);
 
   // Initialize users from settings data (stored in useGateway mock)
   // In production this comes from portalGetSettings → portal_users
-  const [portalUsers, setPortalUsers] = useState(
-    { EMP001: 'admin', EMP002: 'manager' } // seeded from mock
-  );
+  const [portalUsers, setPortalUsers] = useState(auth.portalConfig?.portal_users || {});
 
   // ── Save payroll settings ─────────────────────────────────────────────────
   const savePayrollSettings = async () => {
