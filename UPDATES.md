@@ -123,3 +123,32 @@ Additionally, a dead `users` state declaration was present — declared but neve
 - Toggle wired directly to `theme` / `toggleTheme` from ThemeContext
 - Applies instantly on click — no Save button, no gateway call, no API consumption
 - Persisted to `localStorage` via ThemeContext automatically
+
+## [2026-04-28 | 05] feat: dark mode variants — QueueMonitor, Reports, Settings (Phase 4)
+
+**Why:** All remaining feature screens needed dark: coverage so the theme toggle in Settings affects every page consistently.
+
+**File:** `webtab/src/features/QueueMonitor/index.jsx`
+- STATUS_STYLES map: dark variants added to all 5 status classes (Done/Processing/Pending/Error/Cancelled)
+- ProgressBar: progress text, bar track, error/pending/processing counts
+- RegularCard / TerminationCard: card bg/border, employee ID text, meta text, error banner
+- Page header: title, countdown, refresh button
+- Period input: bg, border, text
+- MPS status card: bg/border, all text
+- Tabs: active/inactive states
+- Empty state text
+
+**File:** `webtab/src/features/Reports/index.jsx`
+- MetricCard: bg/border/text, accent and standard variants
+- CountCard: bg/border/text
+- Page header, period input, Generate button (button bg unchanged — always blue)
+- Section headers, generated timestamp label
+- Empty state icon/text
+
+**File:** `webtab/src/features/Settings/index.jsx`
+- Toggle component: track idle state, label text, sub text, divider
+- SelectField: border, bg, text
+- Section wrapper: card bg/border, header bg/text, divider
+- UserRow: avatar bg, ID text, role text, remove button hover states
+- Portal Users block: card bg/border, header, add-user form inputs and select, divider, label
+- Note: toggle thumb remains bg-white in both themes — correct, it sits against the coloured track

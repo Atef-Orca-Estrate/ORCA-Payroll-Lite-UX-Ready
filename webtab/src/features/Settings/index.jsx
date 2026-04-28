@@ -6,14 +6,14 @@ import { useTheme }          from '../../context/ThemeContext';
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 function Toggle({ value, onChange, label, sub }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
       <div>
-        <p className="text-sm font-medium text-gray-800">{label}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{label}</p>
+        {sub && <p className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">{sub}</p>}
       </div>
       <button
         onClick={() => onChange(!value)}
-        className={`w-11 h-6 rounded-full transition-colors relative ${value ? 'bg-blue-600' : 'bg-gray-300'}`}
+        className={`w-11 h-6 rounded-full transition-colors relative ${value ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-700'}`}
       >
         <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-5' : ''}`} />
       </button>
@@ -24,12 +24,14 @@ function Toggle({ value, onChange, label, sub }) {
 // ─── Select field ─────────────────────────────────────────────────────────────
 function SelectField({ label, value, onChange, options }) {
   return (
-    <div className="py-3 border-b border-gray-100 last:border-0">
-      <label className="block text-sm font-medium text-gray-800 mb-1">{label}</label>
+    <div className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
+      <label className="block text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">{label}</label>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm
+          bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
+          focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -40,16 +42,18 @@ function SelectField({ label, value, onChange, options }) {
 // ─── Section wrapper ─────────────────────────────────────────────────────────
 function Section({ title, children, onSave, saving }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
-      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-        <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden mb-4">
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</h2>
       </div>
       <div className="px-4 py-1">{children}</div>
-      <div className="px-4 py-3 border-t border-gray-100">
+      <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
         <button
           onClick={onSave}
           disabled={saving}
-          className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium
+            hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50
+            flex items-center justify-center gap-2"
         >
           {saving && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
           {saving ? 'Saving…' : 'Save Changes'}
@@ -62,19 +66,20 @@ function Section({ title, children, onSave, saving }) {
 // ─── User row ────────────────────────────────────────────────────────────────
 function UserRow({ userId, role, onRemove }) {
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+    <div className="flex items-center justify-between py-2.5 border-b border-gray-100 dark:border-gray-800 last:border-0">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-700">
+        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-semibold text-blue-700 dark:text-blue-300">
           {userId.slice(0, 2).toUpperCase()}
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-800 font-mono">{userId}</p>
-          <p className="text-xs text-gray-400 capitalize">{role}</p>
+          <p className="text-sm font-medium text-gray-800 dark:text-gray-200 font-mono">{userId}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-600 capitalize">{role}</p>
         </div>
       </div>
       <button
         onClick={() => onRemove(userId)}
-        className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+        className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300
+          px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
       >
         Remove
       </button>
@@ -184,22 +189,22 @@ export default function Settings() {
 
   return (
     <div className="max-w-lg mx-auto">
-      <h1 className="text-lg font-semibold text-gray-900 mb-5">Settings</h1>
+      <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-5">Settings</h1>
 
       {/* Appearance — local preference, instant apply, no gateway call */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-          <h2 className="text-sm font-semibold text-gray-700">Appearance</h2>
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Appearance</h2>
         </div>
         <div className="px-4 py-1">
           <div className="flex items-center justify-between py-3">
             <div>
-              <p className="text-sm font-medium text-gray-800">Dark mode</p>
-              <p className="text-xs text-gray-400 mt-0.5">Saved locally — no sync required</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Dark mode</p>
+              <p className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">Saved locally — no sync required</p>
             </div>
             <button
               onClick={toggleTheme}
-              className={`w-11 h-6 rounded-full transition-colors relative ${theme === 'dark' ? 'bg-blue-600' : 'bg-gray-300'}`}
+              className={`w-11 h-6 rounded-full transition-colors relative ${theme === 'dark' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-700'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${theme === 'dark' ? 'translate-x-5' : ''}`} />
             </button>
@@ -262,9 +267,9 @@ export default function Settings() {
       </Section>
 
       {/* User Management */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-          <h2 className="text-sm font-semibold text-gray-700">Portal Users</h2>
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Portal Users</h2>
         </div>
         <div className="px-4 py-1">
           {Object.entries(portalUsers).map(([uid, role]) => (
@@ -272,20 +277,25 @@ export default function Settings() {
           ))}
         </div>
         {/* Add user form */}
-        <div className="px-4 py-3 border-t border-gray-100 space-y-2">
-          <p className="text-xs font-medium text-gray-600">Add user</p>
+        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Add user</p>
           <div className="flex gap-2">
             <input
               type="text"
               placeholder="Employee ID"
               value={newEmpId}
               onChange={e => setNewEmpId(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              className="flex-1 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm
+                bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
+                placeholder-gray-400 dark:placeholder-gray-600
+                focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
             <select
               value={newRole}
               onChange={e => setNewRole(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-2 text-sm
+                bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
+                focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="admin">Admin</option>
               <option value="manager">Manager</option>
@@ -294,7 +304,9 @@ export default function Settings() {
           <button
             onClick={addUser}
             disabled={savingUser}
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium
+              hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50
+              flex items-center justify-center gap-2"
           >
             {savingUser && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {savingUser ? 'Adding…' : 'Add User'}
