@@ -32,3 +32,20 @@ Session-scoped mutable state: `_createdPeriods`, `_triggerAttempts`, `_portalUse
 - Production path (window.ZOHO.PEOPLE.invoke) preserved intact
 
 ---
+
+## [2026-04-28 | 02] fix: run-ready corrections — permissions, mock roles, SDK script
+
+**Why:** Three issues prevented local run: resolvePermissions received the wrong object from Shell, portal_roles was missing from the mock, and the Zoho SDK CDN script blocked the dev console.
+
+**File:** `webtab/src/hooks/mockData.js`
+- Added `portal_roles` to `portalGetSettings` mock response under `portal_config`
+
+**File:** `webtab/src/components/Shell.jsx`
+- `resolvePermissions(settingsResult, employeeId)` → `resolvePermissions(settingsResult.portal_config, employeeId)`
+
+**File:** `webtab/index.html`
+- Zoho SDK `<script>` tag commented out — not needed in DEV_MODE, was causing CDN errors in local dev
+
+**File:** `README-LOCAL-DEV.md` — new file
+- Step-by-step local run instructions: clone, branch, npm install, npm run dev
+- Documents mock user, active error simulations, and pre-deployment checklist

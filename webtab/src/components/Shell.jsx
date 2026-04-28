@@ -38,8 +38,8 @@ export default function Shell() {
           throw new Error(settingsResult.message || 'Failed to load settings');
         }
 
-        // Step 3: Resolve permissions
-        const { role, features } = resolvePermissions(settingsResult, employeeId);
+        // Step 3: Resolve permissions from portal_config
+        const { role, features } = resolvePermissions(settingsResult.portal_config, employeeId);
 
         if (!role) {
           setAuth(prev => ({ ...prev, loading: false, denied: true, employeeId }));

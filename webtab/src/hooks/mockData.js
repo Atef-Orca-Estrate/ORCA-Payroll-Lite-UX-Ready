@@ -48,6 +48,10 @@ export function mock_portalGetSettings() {
     portal_config: {
       portal_users:               _portalUsers,
       allow_working_days_override: true,
+      portal_roles: {
+        admin:   ['feature_settings', 'feature_run_payroll', 'feature_queue_monitor', 'feature_reports'],
+        manager: ['feature_run_payroll', 'feature_queue_monitor', 'feature_reports'],
+      },
     },
   };
 }
