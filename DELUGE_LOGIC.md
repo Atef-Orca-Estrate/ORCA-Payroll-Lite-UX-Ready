@@ -1,5 +1,12 @@
 # DELUGE_LOGIC.md — Backend Function Requirements
 
+> **⚠️ SUPERSEDED — See `WEBTAB_SPEC.md`**
+> `WEBTAB_SPEC.md` is the authoritative single source of truth for all gateway function contracts,
+> data shapes, mock-to-real discrepancies, and the backend build checklist.
+> This file is retained for historical reference only. Do not update it — update `WEBTAB_SPEC.md`.
+
+---
+
 Tracks every Deluge gateway function the UI depends on.
 Updated with every UI change that adds or modifies a backend dependency.
 No duplicate entries — each function appears once and is updated in place.
