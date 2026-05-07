@@ -142,3 +142,74 @@ Session-scoped mutable state: `_createdPeriods`, `_triggerAttempts`, `_portalUse
 
 **Behaviour change:** Visible — full visual redesign. Zero logic changes. All gateway calls, permission resolution, and feature routing unchanged.
 **Build verified:** ✓ clean build, 45 modules, no errors.
+
+---
+
+## [2026-05-08 | 05] feat: RunPayroll screen — full redesign + mobile drawer + navigation
+
+**Why:** RunPayroll had a broken mobile layout, out-of-sync colors, a buried CTA, and a dead "View period report" callback. This session addressed all 7 identified issues.
+
+### Architecture changes
+**File:** `webtab/src/components/Shell.jsx`
+- Added `navParams` state and `handleNavigate(featureKey, params = {})` callback
+- `handleNavigate` replaces `setActiveFeature` throughout — backward-compatible (params defaults to `{}`)
+- Passed `onNavigate={handleNavigate}` and `navParams={navParams}` to `<ActiveComponent />`
+- Enables cross-feature navigation with pre-filled state (RunPayroll → Reports with period)
+
+### RunPayroll — all 7 issues resolved
+**File:** `webtab/src/features/RunPayroll/index.jsx` — full rewrite
+
+**1. Mobile layout (broken → drawer pattern)**
+- `grid-cols-[260px_1fr]` hardcoded removed — replaced with responsive CSS media query
+- Desktop: `grid-template-columns: 260px 1fr` applied at `≥768px` via inline `<style>` block
+- Mobile: single-column flex layout (wizard + runs list stacked, full width)
+- Records panel hidden on mobile (`display:none` until `≥768px`)
+- Floating "View Records" FAB: fixed position, `bottom: 76px` (above bottom nav), visible mobile only
+- Bottom drawer: slides up from bottom with `cubic-bezier(0.32, 0.72, 0, 1)` transition, max-height 85dvh, drag handle, close button, backdrop overlay with opacity transition
+- Body scroll locked via `useEffect` when drawer open
+
+**2. Color system alignment**
+- All `bg-blue-600` primary buttons → graphite `#111827` (hover: `#1F2937`)
+- Run payroll button: **stays green `#16A34A`** (Don's decision — deliberate "go" signal)
+- Progress bar: `bg-blue-600` → `#6366F1` (indigo accent)
+- Stepper active circle: blue → `#6366F1`
+- Selected row highlight: `bg-blue-50` → `#EEF2FF` (indigo wash)
+- Status badge Processing: blue → indigo
+- StepComplete net paid card: blue → indigo accent tokens
+- All hover/active states use indigo or token vars
+
+**3. Stepper redesign**
+- Circles: `w-5 h-5` (20px) → 28px
+- Labels: `text-[10px]` → 11.5px
+- Done state: green circle with SVG checkmark
+- Active state: solid indigo circle
+- Connector line: `h-px` → `h-2` (2px), color transitions with step progress
+
+**4. CTA anchoring**
+- All step CTAs (Create setup, Run payroll, View period report) use `position: sticky; bottom: 0` with surface background
+- Scrollable content area can grow freely — CTA always visible at bottom of wizard card
+- Override form (working days) no longer pushes "Run payroll" off-screen
+
+**5. Filter tab active state**
+- `border-gray-900 dark:border-gray-100` (harsh) → `border-[#6366F1] color: #6366F1` (indigo)
+- Active tab count badge: gray → indigo wash with indigo text
+
+**6. Error row treatment**
+- `{rec.status.toLowerCase()} · ${rec.error}` (truncated inline) → dedicated red sub-line
+- Error text rendered at `fontSize: 11, color: '#DC2626'` below employee ID
+- Normal (non-error) rows show status + processed_at time as sub-line
+
+**7. onViewReport wired up**
+- `StepComplete` receives `onViewReport` → calls `onNavigate('feature_reports', { period: run.period })`
+- Shell passes `handleNavigate` to feature components — navigation triggers feature switch + navParams
+
+### Reports — pre-fill from navigation
+**File:** `webtab/src/features/Reports/index.jsx` — full rewrite
+- Accepts `navParams` prop from Shell
+- `useEffect` on `navParams?.period`: sets period input + clears stale report
+- Empty state message updates when period is pre-filled: "Period 2026-04 loaded — click Generate"
+- All colors updated to indigo + token vars (removed blue-600 throughout)
+- Generate button: graphite `#111827` matching system
+
+**Behaviour change:** Visible — mobile layout fixed, all colors aligned, drawer navigation added, Reports pre-fills from RunPayroll.
+**Build verified:** ✓ clean build, no errors.

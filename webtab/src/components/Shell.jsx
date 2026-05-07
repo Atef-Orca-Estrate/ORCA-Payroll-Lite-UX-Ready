@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth }       from '../context/AuthContext';
 import { useSDK }        from '../hooks/useSDK';
 import { useGateway }    from '../hooks/useGateway';
@@ -12,23 +12,28 @@ export default function Shell() {
   const { init }          = useSDK();
   const gateway           = useGateway();
   const [activeFeature, setActiveFeature] = useState(null);
-  const [initError, setInitError]         = useState(null);
+  const [navParams,     setNavParams]     = useState({});
+  const [initError,     setInitError]     = useState(null);
+
+  // ── Navigation handler — used by Nav, Sidebar, and features cross-navigating
+  // Accepts optional params so features can deep-link into another feature's state
+  // e.g. RunPayroll → Reports with { period: '2026-04' } pre-filled
+  const handleNavigate = useCallback((featureKey, params = {}) => {
+    setNavParams(params);
+    setActiveFeature(featureKey);
+  }, []);
 
   useEffect(() => {
     async function initialize() {
       try {
-        // Step 1: Get user identity from SDK
-        const user = await init();
+        const user       = await init();
         const employeeId = user.employeeId;
 
-        // Step 2: Fetch settings (includes portal config with roles + users map)
         const settingsResult = await gateway.invoke('portalGetSettings');
-
         if (settingsResult.status !== 'success') {
           throw new Error(settingsResult.message || 'Failed to load settings');
         }
 
-        // Step 3: Resolve permissions from portal_config
         const { role, features } = resolvePermissions(settingsResult.portal_config, employeeId);
 
         if (!role) {
@@ -36,10 +41,7 @@ export default function Shell() {
           return;
         }
 
-        // Step 4: Set default feature (first in features list)
-        const defaultFeature = features[0] || null;
-        setActiveFeature(defaultFeature);
-
+        setActiveFeature(features[0] || null);
         setAuth({
           loading:         false,
           denied:          false,
@@ -56,32 +58,22 @@ export default function Shell() {
         setAuth(prev => ({ ...prev, loading: false }));
       }
     }
-
     initialize();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Loading ──────────────────────────────────────────────────────────────
   if (auth.loading) return <LoadingScreen />;
+  if (initError)    return <ErrorScreen message={initError} onRetry={() => window.location.reload()} />;
+  if (auth.denied)  return <AccessDenied employeeId={auth.employeeId} />;
 
-  // ── Error ────────────────────────────────────────────────────────────────
-  if (initError) return <ErrorScreen message={initError} onRetry={() => window.location.reload()} />;
-
-  // ── Access Denied ────────────────────────────────────────────────────────
-  if (auth.denied) return <AccessDenied employeeId={auth.employeeId} />;
-
-  // ── Main Layout ──────────────────────────────────────────────────────────
   const ActiveComponent = activeFeature ? FEATURE_REGISTRY[activeFeature]?.component : null;
-
-  const isRunPayroll = activeFeature === 'feature_run_payroll';
+  const isRunPayroll    = activeFeature === 'feature_run_payroll';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
-      {/* Desktop sidebar */}
-      <Sidebar active={activeFeature} onNavigate={setActiveFeature} />
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
+      <Sidebar active={activeFeature} onNavigate={handleNavigate} />
 
-      {/* Main content — flex column so RunPayroll can fill remaining height */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden pb-16 md:pb-0">
-        {/* Mobile page header — fixed dark brand bar */}
+        {/* Mobile brand header */}
         <div className="md:hidden flex-shrink-0 flex items-center justify-between px-4 py-3"
           style={{ background: '#0F172A', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -108,26 +100,23 @@ export default function Shell() {
           </div>
         </div>
 
-        {/* Feature content
-            RunPayroll: fixed height, no scroll — component manages its own overflow
-            All others: natural scroll */}
         <div className={
           isRunPayroll
-            ? 'flex-1 min-h-0 overflow-hidden flex flex-col p-4 md:p-6'
+            ? 'flex-1 min-h-0 overflow-hidden flex flex-col p-3 md:p-6'
             : 'flex-1 overflow-y-auto p-4 md:p-6'
         }>
           {ActiveComponent ? (
-            <ActiveComponent />
+            <ActiveComponent onNavigate={handleNavigate} navParams={navParams} />
           ) : (
-            <div className="flex items-center justify-center h-64 text-gray-400 dark:text-gray-600 text-sm">
+            <div className="flex items-center justify-center h-64 text-sm"
+              style={{ color: 'var(--text-muted)' }}>
               Select a feature to get started
             </div>
           )}
         </div>
       </main>
 
-      {/* Mobile bottom nav */}
-      <BottomNav active={activeFeature} onNavigate={setActiveFeature} />
+      <BottomNav active={activeFeature} onNavigate={handleNavigate} />
     </div>
   );
 }

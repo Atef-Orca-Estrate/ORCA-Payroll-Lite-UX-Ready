@@ -2,11 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth, useToast } from '../../context/AuthContext';
 import { useGateway }        from '../../hooks/useGateway';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+const ACCENT       = '#6366F1';
+const ACCENT_BG    = '#EEF2FF';
+const ACCENT_TEXT  = '#3730A3';
+const ACCENT_MUTED = '#818CF8';
+const GRAPHITE     = '#111827';
+const GRAPHITE_H   = '#1F2937';
+
 const fmtEGP = (val) =>
-  val == null
-    ? '—'
-    : 'EGP ' + Number(val).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  val == null ? '—'
+  : 'EGP ' + Number(val).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const currentMonth = () => {
   const d = new Date();
@@ -19,28 +25,46 @@ const STEP_FOR_STATUS = { Draft: 2, Processing: 3, Completed: 4 };
 function Stepper({ step }) {
   const steps = ['Setup', 'Review', 'Running', 'Complete'];
   return (
-    <div className="flex items-center flex-shrink-0 px-4 pt-3 pb-2">
+    <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px 10px', flexShrink: 0 }}>
       {steps.map((label, i) => {
-        const idx = i + 1;
-        const done = step > idx;
+        const idx    = i + 1;
+        const done   = step > idx;
         const active = step === idx;
+        const circleBg = done ? '#16A34A' : active ? ACCENT : 'var(--surface-inset)';
+        const circleColor = done || active ? '#fff' : 'var(--text-muted)';
+        const labelColor  = active ? ACCENT : done ? '#16A34A' : 'var(--text-muted)';
         return (
-          <div key={label} className="flex items-center flex-1 last:flex-none">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0
-                ${done ? 'bg-green-600 dark:bg-green-700 text-white'
-                : active ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border border-gray-200 dark:border-gray-700'}`}>
-                {done ? '✓' : idx}
+          <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+              <div style={{
+                width: 28, height: 28,
+                borderRadius: '50%',
+                background: circleBg,
+                border: !done && !active ? '1.5px solid var(--border-strong)' : 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: 11, fontWeight: 600,
+                color: circleColor,
+                transition: 'all 200ms',
+              }}>
+                {done ? (
+                  <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>
+                ) : idx}
               </div>
-              <span className={`text-[10px] font-medium truncate
-                ${active ? 'text-blue-700 dark:text-blue-400'
-                : done ? 'text-green-700 dark:text-green-500'
-                : 'text-gray-400 dark:text-gray-600'}`}>
+              <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 400, color: labelColor, whiteSpace: 'nowrap', transition: 'color 200ms' }}>
                 {label}
               </span>
             </div>
-            {i < steps.length - 1 && <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700 mx-2 min-w-2" />}
+            {i < steps.length - 1 && (
+              <div style={{
+                flex: 1, height: 2, borderRadius: 99,
+                background: step > idx + 1 ? '#16A34A' : step === idx + 1 ? ACCENT : 'var(--border)',
+                margin: '0 10px',
+                transition: 'background 200ms',
+              }} />
+            )}
           </div>
         );
       })}
@@ -48,11 +72,68 @@ function Stepper({ step }) {
   );
 }
 
+// ─── Shared button styles ─────────────────────────────────────────────────────
+function PrimaryBtn({ onClick, disabled, loading, children, style = {} }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{
+        width: '100%', padding: '10px 16px',
+        background: disabled ? 'var(--surface-inset)' : GRAPHITE,
+        color: disabled ? 'var(--text-muted)' : '#fff',
+        border: 'none', borderRadius: 8,
+        fontSize: 13, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        fontFamily: 'inherit', transition: 'background 120ms',
+        ...style,
+      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = GRAPHITE_H; }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.background = GRAPHITE; }}
+    >
+      {loading && <Spinner size={14} color="#fff" />}
+      {children}
+    </button>
+  );
+}
+
+function GreenBtn({ onClick, disabled, loading, children }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{
+        width: '100%', padding: '10px 16px',
+        background: disabled ? 'var(--surface-inset)' : '#16A34A',
+        color: disabled ? 'var(--text-muted)' : '#fff',
+        border: 'none', borderRadius: 8,
+        fontSize: 13, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        fontFamily: 'inherit', transition: 'background 120ms',
+      }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = '#15803D'; }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.background = '#16A34A'; }}
+    >
+      {loading && <Spinner size={14} color="#fff" />}
+      {children}
+    </button>
+  );
+}
+
+function Spinner({ size = 14, color = ACCENT }) {
+  return (
+    <div style={{
+      width: size, height: size,
+      border: `2px solid rgba(255,255,255,0.25)`,
+      borderTopColor: color,
+      borderRadius: '50%',
+      animation: 'spin 0.7s linear infinite',
+      flexShrink: 0,
+    }} />
+  );
+}
+
 // ─── Step 1 — Setup ───────────────────────────────────────────────────────────
 function StepSetup({ onCreated }) {
   const gateway = useGateway();
   const { show: showToast } = useToast();
-  const [period, setPeriod] = useState(currentMonth());
+  const [period,  setPeriod]  = useState(currentMonth());
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
@@ -60,33 +141,35 @@ function StepSetup({ onCreated }) {
     setLoading(true);
     try {
       const result = await gateway.invoke('portalCreateMPS', { payroll_period: period });
-      if (result.status === 'success') {
-        showToast('Payroll setup created', 'success');
-        onCreated(result);
-      } else {
-        showToast(result.message || 'Failed to create setup', 'error');
-      }
+      if (result.status === 'success') { showToast('Payroll setup created', 'success'); onCreated(result); }
+      else showToast(result.message || 'Failed to create setup', 'error');
     } catch { showToast('Error creating setup', 'error'); }
-    finally { setLoading(false); }
+    finally  { setLoading(false); }
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Payroll period</label>
-        <input
-          type="month" value={period} onChange={e => setPeriod(e.target.value)}
-          className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm
-            bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
-            focus:outline-none focus:ring-2 focus:ring-blue-500"
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flex: 1, padding: '4px 0 12px' }}>
+        <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
+          Payroll period
+        </label>
+        <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
+          style={{
+            width: '100%', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '8px 12px', fontSize: 13,
+            background: 'var(--surface)', color: 'var(--text-primary)',
+            outline: 'none', fontFamily: 'inherit',
+          }}
+          onFocus={e => e.target.style.borderColor = ACCENT}
+          onBlur={e  => e.target.style.borderColor = 'var(--border)'}
         />
       </div>
-      <button onClick={handleCreate} disabled={loading}
-        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium
-          transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-        {loading && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-        {loading ? 'Creating…' : 'Create setup'}
-      </button>
+      {/* Sticky CTA */}
+      <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, background: 'var(--surface)' }}>
+        <PrimaryBtn onClick={handleCreate} disabled={loading} loading={loading}>
+          {loading ? 'Creating…' : 'Create setup'}
+        </PrimaryBtn>
+      </div>
     </div>
   );
 }
@@ -97,10 +180,10 @@ function StepReview({ run, onRun }) {
   const { auth } = useAuth();
   const { show: showToast } = useToast();
   const allowOverride = auth.portalConfig?.allow_working_days_override;
-  const [overriding, setOverriding] = useState(false);
-  const [workingDays, setWorkingDays] = useState(run.working_days);
-  const [saving, setSaving] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [overriding,   setOverriding]   = useState(false);
+  const [workingDays,  setWorkingDays]  = useState(run.working_days);
+  const [saving,       setSaving]       = useState(false);
+  const [running,      setRunning]      = useState(false);
 
   const handleSaveOverride = async () => {
     setSaving(true);
@@ -125,62 +208,98 @@ function StepReview({ run, onRun }) {
   const scopeLabel = { all: 'All active employees', by_department: 'By department', by_employee: 'Selected employees' }[auth.payrollSettings?.scope] || 'All active employees';
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-lg border border-gray-100 dark:border-gray-700/60 divide-y divide-gray-100 dark:divide-gray-700/60 overflow-hidden">
-        {[['Period', run.period], ['Scope', scopeLabel]].map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800/50">
-            <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
-            <span className="text-xs font-medium text-gray-900 dark:text-gray-100">{value}</span>
-          </div>
-        ))}
-        <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800/50">
-          <span className="text-xs text-gray-500 dark:text-gray-400">Working days</span>
-          <div className="flex items-center gap-2">
-            {overriding ? (
-              <input type="number" min={1} max={31} value={workingDays}
-                onChange={e => setWorkingDays(Number(e.target.value))}
-                className="w-14 border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs text-right
-                  bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            ) : (
-              <span className="text-xs font-medium text-gray-900 dark:text-gray-100">{workingDays}</span>
-            )}
-            {allowOverride && !overriding && (
-              <button onClick={() => setOverriding(true)} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">Override</button>
-            )}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flex: 1, paddingBottom: 12 }}>
+        {/* Config rows */}
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
+          {[['Period', run.period], ['Scope', scopeLabel]].map(([label, value]) => (
+            <div key={label} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 12px', background: 'var(--surface-raised)',
+              borderBottom: '1px solid var(--border)',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{label}</span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{value}</span>
+            </div>
+          ))}
+          {/* Working days row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 12px', background: 'var(--surface-raised)',
+          }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Working days</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {overriding ? (
+                <input type="number" min={1} max={31} value={workingDays}
+                  onChange={e => setWorkingDays(Number(e.target.value))}
+                  style={{
+                    width: 52, border: '1px solid var(--border)', borderRadius: 6,
+                    padding: '2px 8px', fontSize: 12, textAlign: 'right',
+                    background: 'var(--surface)', color: 'var(--text-primary)',
+                    outline: 'none', fontFamily: 'inherit',
+                  }}
+                  onFocus={e => e.target.style.borderColor = ACCENT}
+                  onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+                />
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{workingDays}</span>
+              )}
+              {allowOverride && !overriding && (
+                <button onClick={() => setOverriding(true)}
+                  style={{ fontSize: 11, color: ACCENT, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                  Override
+                </button>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Override save/cancel */}
+        {overriding && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button onClick={handleSaveOverride} disabled={saving}
+              style={{
+                flex: 1, padding: '7px 12px', background: ACCENT, color: '#fff',
+                border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 500,
+                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily: 'inherit',
+              }}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={() => { setOverriding(false); setWorkingDays(run.working_days); }}
+              style={{
+                flex: 1, padding: '7px 12px', background: 'none',
+                border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, fontWeight: 500,
+                color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Holidays */}
+        {run.holidays && (
+          <div style={{ marginBottom: 8 }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+              Public holidays
+            </p>
+            <div style={{
+              background: 'var(--surface-raised)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '8px 12px',
+            }}>
+              {run.holidays.split('\n').map((h, i) => (
+                <p key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'monospace', padding: '2px 0' }}>{h}</p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {overriding && (
-        <div className="flex gap-2">
-          <button onClick={handleSaveOverride} disabled={saving}
-            className="flex-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-          <button onClick={() => { setOverriding(false); setWorkingDays(run.working_days); }}
-            className="flex-1 py-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 rounded-lg text-xs font-medium">
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {run.holidays && (
-        <div>
-          <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider mb-1">Public holidays</p>
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-100 dark:border-gray-700/60">
-            {run.holidays.split('\n').map((h, i) => (
-              <p key={i} className="text-xs text-gray-600 dark:text-gray-400 font-mono py-0.5">{h}</p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <button onClick={handleRun} disabled={running || overriding}
-        className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium
-          transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-        {running && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-        {running ? 'Starting…' : 'Run payroll'}
-      </button>
+      {/* Sticky CTA */}
+      <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, background: 'var(--surface)' }}>
+        <GreenBtn onClick={handleRun} disabled={running || overriding} loading={running}>
+          {running ? 'Starting…' : 'Run payroll'}
+        </GreenBtn>
+      </div>
     </div>
   );
 }
@@ -194,30 +313,35 @@ function StepRunning({ run, countdown }) {
   const pct   = Math.round((done / total) * 100);
 
   return (
-    <div className="space-y-3">
-      <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 rounded-lg px-3 py-2.5">
-        <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 4 }}>
+      <div style={{
+        background: ACCENT_BG, border: `1px solid var(--accent-border)`,
+        borderRadius: 8, padding: '10px 12px',
+      }}>
+        <p style={{ fontSize: 12.5, fontWeight: 500, color: ACCENT_TEXT }}>
           {run.employees} employees · {run.batches} batch{run.batches !== 1 ? 'es' : ''}
         </p>
       </div>
+
       <div>
-        <div className="flex justify-between text-xs mb-1.5">
-          <span className="text-gray-500 dark:text-gray-400">Processing — refresh in {countdown}s</span>
-          <span className="font-medium text-gray-900 dark:text-gray-100">{pct}%</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 6 }}>
+          <span style={{ color: 'var(--text-secondary)' }}>Processing — refresh in {countdown}s</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{pct}%</span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div className="bg-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+        <div style={{ width: '100%', height: 6, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: ACCENT, borderRadius: 99, transition: 'width 500ms ease' }} />
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         {[
-          { label: 'Done',      val: done, color: 'text-green-700 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950/40' },
-          { label: 'Remaining', val: rem,  color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' },
-          { label: 'Errors',    val: err,  color: 'text-red-700 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-950/40'    },
-        ].map(({ label, val, color, bg }) => (
-          <div key={label} className={`${bg} rounded-lg py-2 text-center`}>
-            <div className={`text-base font-semibold ${color}`}>{val}</div>
-            <div className="text-[10px] text-gray-500 dark:text-gray-400">{label}</div>
+          { label: 'Done',      val: done, bg: 'rgba(22,163,74,0.08)',   color: '#16A34A' },
+          { label: 'Remaining', val: rem,  bg: 'rgba(245,158,11,0.08)',  color: '#B45309' },
+          { label: 'Errors',    val: err,  bg: 'rgba(239,68,68,0.08)',   color: '#DC2626' },
+        ].map(({ label, val, bg, color }) => (
+          <div key={label} style={{ background: bg, borderRadius: 8, padding: '10px 8px', textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color }}>{val}</div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-secondary)', marginTop: 2 }}>{label}</div>
           </div>
         ))}
       </div>
@@ -228,45 +352,69 @@ function StepRunning({ run, countdown }) {
 // ─── Step 4 — Complete ────────────────────────────────────────────────────────
 function StepComplete({ run, onViewReport }) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 bg-green-50 dark:bg-green-950/40 border border-green-100 dark:border-green-900/50 rounded-lg px-3 py-2.5">
-        <svg className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-        <p className="text-xs font-medium text-green-800 dark:text-green-300">
-          {run.employees} employees processed — {run.period}
-        </p>
-      </div>
-      {run.error > 0 && (
-        <div className="bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/50 rounded-lg px-3 py-2">
-          <p className="text-xs text-red-700 dark:text-red-400">
-            {run.error} employee{run.error > 1 ? 's' : ''} errored — check records panel
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.20)',
+          borderRadius: 8, padding: '10px 12px',
+        }}>
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#16A34A" strokeWidth={2.5} style={{ flexShrink: 0 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          <p style={{ fontSize: 12.5, fontWeight: 500, color: '#15803D' }}>
+            {run.employees} employees processed — {run.period}
           </p>
         </div>
-      )}
-      <div className="grid grid-cols-2 gap-2">
-        {[
-          { label: 'Gross salary', val: run.gross, accent: false },
-          { label: 'Net paid',     val: run.net,   accent: true  },
-          { label: 'Tax withheld', val: run.tax,   accent: false },
-          { label: 'Employee SI',  val: run.si,    accent: false },
-        ].map(({ label, val, accent }) => (
-          <div key={label} className={`rounded-lg px-3 py-2 border
-            ${accent
-              ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/50'
-              : 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700/60'}`}>
-            <div className="text-[10px] text-gray-400 dark:text-gray-500">{label}</div>
-            <div className={`text-xs font-semibold mt-0.5 ${accent ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'}`}>
-              {fmtEGP(val)}
-            </div>
+
+        {run.error > 0 && (
+          <div style={{
+            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.20)',
+            borderRadius: 8, padding: '8px 12px',
+          }}>
+            <p style={{ fontSize: 12, color: '#DC2626' }}>
+              {run.error} employee{run.error > 1 ? 's' : ''} errored — check records
+            </p>
           </div>
-        ))}
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[
+            { label: 'Gross salary', val: run.gross, accent: false },
+            { label: 'Net paid',     val: run.net,   accent: true  },
+            { label: 'Tax withheld', val: run.tax,   accent: false },
+            { label: 'Employee SI',  val: run.si,    accent: false },
+          ].map(({ label, val, accent }) => (
+            <div key={label} style={{
+              borderRadius: 8, padding: '10px 12px',
+              background: accent ? ACCENT_BG : 'var(--surface-raised)',
+              border: `1px solid ${accent ? 'var(--accent-border)' : 'var(--border)'}`,
+            }}>
+              <div style={{ fontSize: 10.5, color: accent ? ACCENT : 'var(--text-muted)' }}>{label}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginTop: 3, color: accent ? ACCENT_TEXT : 'var(--text-primary)' }}>
+                {fmtEGP(val)}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-      <button onClick={onViewReport}
-        className="w-full py-2 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400
-          hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg text-xs font-medium transition-colors">
-        View period report
-      </button>
+
+      {/* Sticky CTA */}
+      <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, background: 'var(--surface)' }}>
+        <button onClick={onViewReport}
+          style={{
+            width: '100%', padding: '9px 16px',
+            background: 'none', border: '1px solid var(--border)',
+            borderRadius: 8, fontSize: 12.5, fontWeight: 500,
+            color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
+            transition: 'background 120ms, color 120ms',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-raised)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          View period report →
+        </button>
+      </div>
     </div>
   );
 }
@@ -275,18 +423,35 @@ function StepComplete({ run, onViewReport }) {
 function WizardCard({ run, isNew, countdown, onCreated, onRun, onViewReport }) {
   const step = isNew ? 1 : (STEP_FOR_STATUS[run?.status] ?? 1);
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl">
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
-        <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider">Payroll wizard</span>
+    <div style={{
+      flex: '1 1 0', minHeight: 0,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+    }}>
+      {/* Header */}
+      <div style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 16px', borderBottom: '1px solid var(--border)',
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Payroll wizard
+        </span>
         {!isNew && run && (
-          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400">
+          <span style={{
+            fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 99,
+            background: ACCENT_BG, color: ACCENT,
+          }}>
             {run.period}
           </span>
         )}
       </div>
+
       <Stepper step={step} />
-      {/* Only this area scrolls — header and stepper are always visible */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+
+      {/* Scrollable step content */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 16px 16px' }}>
         {step === 1 && <StepSetup onCreated={onCreated} />}
         {step === 2 && run && <StepReview run={run} onRun={onRun} />}
         {step === 3 && run && <StepRunning run={run} countdown={countdown} />}
@@ -297,147 +462,184 @@ function WizardCard({ run, isNew, countdown, onCreated, onRun, onViewReport }) {
 }
 
 // ─── Runs List ────────────────────────────────────────────────────────────────
-const STATUS_DOT = { Completed: 'bg-green-500', Processing: 'bg-blue-500 animate-pulse', Draft: 'bg-gray-400 dark:bg-gray-600' };
-const STATUS_BADGE = {
-  Completed:  'bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400',
-  Processing: 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400',
-  Draft:      'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
+const STATUS_DOT = {
+  Completed:  { bg: '#16A34A' },
+  Processing: { bg: ACCENT, pulse: true },
+  Draft:      { bg: 'var(--text-muted)' },
 };
 
 function RunsList({ runs, selectedPeriod, isNew, onSelectNew, onSelectRun }) {
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl">
-      <div className="flex-shrink-0 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
-        <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider">Previous runs</span>
+    <div style={{
+      flex: '1 1 0', minHeight: 0,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+    }}>
+      <div style={{ flexShrink: 0, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Previous runs
+        </span>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {/* Pinned new run row */}
-        <div onClick={onSelectNew}
-          className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-800 transition-colors
-            ${isNew ? 'bg-blue-50 dark:bg-blue-950/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
-          <div className="w-5 h-5 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center flex-shrink-0">
-            <svg className="w-2.5 h-2.5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {/* New run row */}
+        <div onClick={onSelectNew} style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '11px 16px', cursor: 'pointer',
+          borderBottom: '1px solid var(--border)',
+          background: isNew ? ACCENT_BG : 'transparent',
+          transition: 'background 120ms',
+        }}
+        onMouseEnter={e => { if (!isNew) e.currentTarget.style.background = 'var(--surface-raised)'; }}
+        onMouseLeave={e => { if (!isNew) e.currentTarget.style.background = 'transparent'; }}>
+          <div style={{
+            width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+            border: `2px dashed ${isNew ? ACCENT : 'var(--border-strong)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke={isNew ? ACCENT : 'var(--text-muted)'} strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
             </svg>
           </div>
-          <span className={`text-sm font-medium ${isNew ? 'text-blue-700 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: isNew ? ACCENT_TEXT : 'var(--text-secondary)' }}>
             New payroll run
           </span>
         </div>
+
         {/* Historical runs */}
         {runs === null ? (
-          <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
-        ) : runs.length === 0 ? (
-          <p className="text-xs text-gray-400 dark:text-gray-600 text-center py-6">No previous runs</p>
-        ) : runs.map(run => (
-          <div key={run.period} onClick={() => onSelectRun(run)}
-            className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-800 last:border-0 transition-colors
-              ${!isNew && selectedPeriod === run.period ? 'bg-blue-50 dark:bg-blue-950/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[run.status] || 'bg-gray-400'}`} />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{run.period}</div>
-              <div className="text-[11px] text-gray-400 dark:text-gray-600 mt-0.5">{run.employees} employees · {run.working_days} days</div>
-            </div>
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[run.status] || ''}`}>
-              {run.status}
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <Spinner size={18} color={ACCENT} />
           </div>
-        ))}
+        ) : runs.length === 0 ? (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>No previous runs</p>
+        ) : runs.map(run => {
+          const dot     = STATUS_DOT[run.status] || STATUS_DOT.Draft;
+          const isSelected = !isNew && selectedPeriod === run.period;
+          return (
+            <div key={run.period} onClick={() => onSelectRun(run)} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '11px 16px', cursor: 'pointer',
+              borderBottom: '1px solid var(--border)',
+              background: isSelected ? ACCENT_BG : 'transparent',
+              transition: 'background 120ms',
+            }}
+            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface-raised)'; }}
+            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                background: dot.bg,
+                boxShadow: dot.pulse ? `0 0 0 2px rgba(99,102,241,0.3)` : 'none',
+              }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: isSelected ? ACCENT_TEXT : 'var(--text-primary)' }}>{run.period}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                  {run.employees} employees · {run.working_days} days
+                </div>
+              </div>
+              <span style={{
+                fontSize: 10.5, fontWeight: 500, padding: '2px 8px', borderRadius: 99, flexShrink: 0,
+                background: run.status === 'Completed' ? 'rgba(22,163,74,0.10)'
+                  : run.status === 'Processing' ? ACCENT_BG : 'var(--surface-inset)',
+                color: run.status === 'Completed' ? '#16A34A'
+                  : run.status === 'Processing' ? ACCENT : 'var(--text-muted)',
+              }}>
+                {run.status}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 // ─── Record Row ───────────────────────────────────────────────────────────────
-const REC_BADGE = {
-  Done:       'bg-green-50 dark:bg-green-950/50 text-green-700 dark:text-green-400',
-  Error:      'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-400',
-  Processing: 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400',
-  Pending:    'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
-};
-
 function RecordRow({ rec, isExpanded, onToggle }) {
   const hasFinancials = rec.pr_gross_salary != null;
+  const statusColor = rec.status === 'Done' ? '#16A34A'
+    : rec.status === 'Error' ? '#DC2626'
+    : rec.status === 'Processing' ? ACCENT : 'var(--text-muted)';
+  const statusBg = rec.status === 'Done' ? 'rgba(22,163,74,0.10)'
+    : rec.status === 'Error' ? 'rgba(239,68,68,0.10)'
+    : rec.status === 'Processing' ? ACCENT_BG : 'var(--surface-inset)';
+
   return (
-    <div className="border-b border-gray-100 dark:border-gray-800 last:border-0">
-      <div onClick={hasFinancials ? onToggle : undefined}
-        className={`flex items-center justify-between px-4 py-3 transition-colors
-          ${hasFinancials ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50' : 'cursor-default'}
-          ${isExpanded ? 'bg-gray-50 dark:bg-gray-800/40' : ''}`}>
-        <div className="min-w-0 mr-3">
-          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{rec.employee_id}</div>
-          <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">
-            {rec.status.toLowerCase()}{rec.error ? ` · ${rec.error}` : ''}
-          </div>
+    <div style={{ borderBottom: '1px solid var(--border)' }}>
+      <div onClick={hasFinancials ? onToggle : undefined} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '11px 16px',
+        cursor: hasFinancials ? 'pointer' : 'default',
+        background: isExpanded ? 'var(--surface-raised)' : 'transparent',
+        transition: 'background 120ms',
+      }}
+      onMouseEnter={e => { if (hasFinancials && !isExpanded) e.currentTarget.style.background = 'var(--surface-raised)'; }}
+      onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = 'transparent'; }}>
+        <div style={{ minWidth: 0, marginRight: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{rec.employee_id}</div>
+          {rec.error ? (
+            <div style={{ fontSize: 11, color: '#DC2626', marginTop: 2 }}>{rec.error}</div>
+          ) : (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, textTransform: 'capitalize' }}>
+              {rec.status.toLowerCase()}{rec.processed_at ? ` · ${rec.processed_at}` : ''}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${REC_BADGE[rec.status] || ''}`}>{rec.status}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 500, padding: '2px 8px', borderRadius: 99, background: statusBg, color: statusColor }}>
+            {rec.status}
+          </span>
           {hasFinancials && (
-            <svg className={`w-3.5 h-3.5 text-gray-400 dark:text-gray-600 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--text-muted)" strokeWidth={2}
+              style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 200ms', flexShrink: 0 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
             </svg>
           )}
         </div>
       </div>
+
       {isExpanded && hasFinancials && (
-        <div className="px-4 pb-4 pt-1 bg-gray-50 dark:bg-gray-800/40 space-y-3">
-          {/* Earnings */}
-          <div>
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider mb-1.5">Earnings</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Basic salary',     val: rec.pr_basic_salary },
-                { label: 'Allowances',       val: rec.pr_total_allowances },
-                { label: 'Gross salary',     val: rec.pr_gross_salary },
-              ].map(({ label, val }) => (
-                <div key={label} className="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-100 dark:border-gray-700/60">
-                  <div className="text-[10px] text-gray-400 dark:text-gray-500">{label}</div>
-                  <div className="text-[11px] font-semibold text-gray-900 dark:text-gray-100 mt-0.5">{fmtEGP(val)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Deductions */}
-          <div>
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider mb-1.5">Deductions</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Employee SI',      val: rec.pr_employee_si_deduction },
-                { label: "Martyrs' fund",    val: rec.pr_martyrs_fund },
-                { label: 'Absence',          val: rec.pr_absence_deduction },
-                { label: 'Unpaid leave',     val: rec.pr_unpaid_leave_deduction },
-                { label: 'Late',             val: rec.pr_late_deduction },
-                { label: 'Total deductions', val: rec.pr_total_deductions },
-              ].map(({ label, val }) => (
-                <div key={label} className="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-100 dark:border-gray-700/60">
-                  <div className="text-[10px] text-gray-400 dark:text-gray-500">{label}</div>
-                  <div className="text-[11px] font-semibold text-gray-900 dark:text-gray-100 mt-0.5">{fmtEGP(val)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Result */}
-          <div>
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider mb-1.5">Result</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Net salary',       val: rec.pr_net_salary,           accent: true  },
-                { label: 'Monthly tax',      val: rec.pr_monthly_tax_withheld, accent: false },
-                { label: 'YTD tax withheld', val: rec.pr_ytd_tax_withheld,     accent: false },
-              ].map(({ label, val, accent }) => (
-                <div key={label} className={`rounded-lg px-2.5 py-2 border
-                  ${accent
-                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/50'
-                    : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-700/60'}`}>
-                  <div className="text-[10px] text-gray-400 dark:text-gray-500">{label}</div>
-                  <div className={`text-[11px] font-semibold mt-0.5 ${accent ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                    {fmtEGP(val)}
+        <div style={{ padding: '4px 16px 16px', background: 'var(--surface-raised)' }}>
+          {[
+            { title: 'Earnings', rows: [
+              ['Basic salary', rec.pr_basic_salary],
+              ['Allowances', rec.pr_total_allowances],
+              ['Gross salary', rec.pr_gross_salary],
+            ]},
+            { title: 'Deductions', rows: [
+              ['Employee SI', rec.pr_employee_si_deduction],
+              ["Martyrs' fund", rec.pr_martyrs_fund],
+              ['Absence', rec.pr_absence_deduction],
+              ['Unpaid leave', rec.pr_unpaid_leave_deduction],
+              ['Late', rec.pr_late_deduction],
+              ['Total deductions', rec.pr_total_deductions],
+            ]},
+            { title: 'Result', rows: [
+              ['Net salary', rec.pr_net_salary, true],
+              ['Monthly tax', rec.pr_monthly_tax_withheld],
+              ['YTD tax', rec.pr_ytd_tax_withheld],
+            ]},
+          ].map(({ title, rows }) => (
+            <div key={title} style={{ marginTop: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                {title}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                {rows.map(([label, val, accent]) => (
+                  <div key={label} style={{
+                    background: accent ? ACCENT_BG : 'var(--surface)',
+                    border: `1px solid ${accent ? 'var(--accent-border)' : 'var(--border)'}`,
+                    borderRadius: 7, padding: '8px 10px',
+                  }}>
+                    <div style={{ fontSize: 10, color: accent ? ACCENT : 'var(--text-muted)' }}>{label}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 2, color: accent ? ACCENT_TEXT : 'var(--text-primary)' }}>
+                      {fmtEGP(val)}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
@@ -467,41 +669,76 @@ function RecordsPanel({ records, loading, period }) {
     records.filter(r => r.status === activeFilter);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl">
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
-        <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-wider">Payroll records</span>
-        <span className="text-[11px] text-gray-400 dark:text-gray-600">{period ? `${counts.All} employees` : '—'}</span>
+    <div style={{
+      flex: 1, minHeight: 0,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+    }}>
+      {/* Header */}
+      <div style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 16px', borderBottom: '1px solid var(--border)',
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Payroll records
+        </span>
+        <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+          {period ? `${counts.All} employees` : '—'}
+        </span>
       </div>
-      <div className="flex-shrink-0 flex border-b border-gray-100 dark:border-gray-800 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {FILTERS.map(f => (
-          <button key={f} onClick={() => { setActiveFilter(f); setExpandedId(null); }}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 whitespace-nowrap flex-shrink-0 transition-colors
-              ${activeFilter === f
-                ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100'
-                : 'border-transparent text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400'}`}>
-            {f}
-            <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
-              {counts[f]}
-            </span>
-          </button>
-        ))}
+
+      {/* Filter tabs */}
+      <div style={{ flexShrink: 0, display: 'flex', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+        {FILTERS.map(f => {
+          const isActive = activeFilter === f;
+          return (
+            <button key={f} onClick={() => { setActiveFilter(f); setExpandedId(null); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '10px 14px', fontSize: 12, fontWeight: isActive ? 600 : 400,
+                borderBottom: `2px solid ${isActive ? ACCENT : 'transparent'}`,
+                color: isActive ? ACCENT : 'var(--text-muted)',
+                background: 'none', border: 'none',
+                borderBottomWidth: 2,
+                borderBottomStyle: 'solid',
+                borderBottomColor: isActive ? ACCENT : 'transparent',
+                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                fontFamily: 'inherit', transition: 'color 120ms',
+              }}>
+              {f}
+              <span style={{
+                fontSize: 10, padding: '1px 6px', borderRadius: 99,
+                background: isActive ? ACCENT_BG : 'var(--surface-inset)',
+                color: isActive ? ACCENT_TEXT : 'var(--text-secondary)',
+                fontWeight: 600,
+              }}>
+                {counts[f]}
+              </span>
+            </button>
+          );
+        })}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+
+      {/* Records list */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {!period ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-300 dark:text-gray-700 py-12">
-            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, padding: '48px 0' }}>
+            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="var(--border-strong)" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            <p className="text-sm">Select a run to view records</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Select a run to view records</p>
           </div>
         ) : loading ? (
-          <div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+            <Spinner size={22} color={ACCENT} />
+          </div>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-gray-400 dark:text-gray-600 text-center py-12">No records match this filter</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '48px 0' }}>
+            No records match this filter
+          </p>
         ) : filtered.map(rec => (
           <RecordRow
-            key={rec.employee_id}
-            rec={rec}
+            key={rec.employee_id} rec={rec}
             isExpanded={expandedId === rec.employee_id}
             onToggle={() => setExpandedId(id => id === rec.employee_id ? null : rec.employee_id)}
           />
@@ -512,7 +749,7 @@ function RecordsPanel({ records, loading, period }) {
 }
 
 // ─── Main RunPayroll ──────────────────────────────────────────────────────────
-export default function RunPayroll() {
+export default function RunPayroll({ onNavigate }) {
   const gateway = useGateway();
   const { show: showToast } = useToast();
 
@@ -523,8 +760,14 @@ export default function RunPayroll() {
   const [activeRecords,  setActiveRecords]  = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [countdown,      setCountdown]      = useState(30);
+  const [showDrawer,     setShowDrawer]     = useState(false);
 
-  // Fetch runs list ONCE on mount — cached for the session
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    document.body.style.overflow = showDrawer ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [showDrawer]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -535,12 +778,8 @@ export default function RunPayroll() {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load records — cache hit = zero API call
   const loadRecords = useCallback(async (period, forceRefresh = false) => {
-    if (!forceRefresh && recordsCache[period]) {
-      setActiveRecords(recordsCache[period]);
-      return;
-    }
+    if (!forceRefresh && recordsCache[period]) { setActiveRecords(recordsCache[period]); return; }
     setRecordsLoading(true);
     try {
       const result = await gateway.invoke('portalGetPayrollRecords', { payroll_period: period });
@@ -552,10 +791,8 @@ export default function RunPayroll() {
     finally { setRecordsLoading(false); }
   }, [recordsCache]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll only when selected run is Processing — stops automatically on completion
   useEffect(() => {
     if (!selectedRun || selectedRun.status !== 'Processing') return;
-
     const poll = async () => {
       try {
         const result = await gateway.invoke('portalGetQueueStatus', { payroll_period: selectedRun.period });
@@ -570,22 +807,16 @@ export default function RunPayroll() {
         setSelectedRun(updated);
         setRuns(prev => prev?.map(r => r.period === updated.period ? updated : r) ?? prev);
         setCountdown(30);
-        // Run just completed — refresh records once to get final state
         if (result.mps_status === 'Completed') loadRecords(selectedRun.period, true);
       } catch { /* silent */ }
     };
-
     const pollTimer  = setInterval(poll, 30000);
     const countTimer = setInterval(() => setCountdown(c => (c > 1 ? c - 1 : 30)), 1000);
     return () => { clearInterval(pollTimer); clearInterval(countTimer); };
   }, [selectedRun?.period, selectedRun?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSelectNew = () => { setIsNew(true); setSelectedRun(null); setActiveRecords([]); };
-
-  const handleSelectRun = (run) => {
-    setIsNew(false); setSelectedRun(run); setCountdown(30);
-    loadRecords(run.period);
-  };
+  const handleSelectNew = () => { setIsNew(true); setSelectedRun(null); setActiveRecords([]); setShowDrawer(false); };
+  const handleSelectRun = (run) => { setIsNew(false); setSelectedRun(run); setCountdown(30); loadRecords(run.period); };
 
   const handleMpsCreated = (result) => {
     const newRun = { period: result.period, status: 'Draft', employees: 0, working_days: result.working_days, batches: 0, done: 0, error: 0, pending: 0, holidays: result.holidays };
@@ -600,23 +831,139 @@ export default function RunPayroll() {
     setCountdown(30);
   };
 
+  const handleViewReport = () => {
+    if (onNavigate && selectedRun?.period) {
+      onNavigate('feature_reports', { period: selectedRun.period });
+    }
+  };
+
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="flex-shrink-0 mb-3">
-        <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">Run payroll</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Select a previous run or create a new one</p>
-      </div>
-      <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr] gap-3 overflow-hidden">
-        <div className="flex flex-col gap-3 min-h-0 overflow-hidden">
-          <WizardCard run={selectedRun} isNew={isNew} countdown={countdown}
-            onCreated={handleMpsCreated} onRun={handleRunStarted} onViewReport={() => {}} />
-          <RunsList runs={runs} selectedPeriod={selectedRun?.period} isNew={isNew}
-            onSelectNew={handleSelectNew} onSelectRun={handleSelectRun} />
+    <>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Page header */}
+        <div style={{ flexShrink: 0, marginBottom: 12 }}>
+          <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Run payroll</h1>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Select a previous run or create a new one</p>
         </div>
-        <div className="flex flex-col min-h-0 overflow-hidden">
+
+        {/* Layout — mobile: stacked flex, desktop: two-column grid */}
+        <div style={{ flex: 1, minHeight: 0, display: 'grid', gap: 12, overflow: 'hidden' }}
+          className="grid-layout-run">
+          {/* Left column: wizard + runs list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0, overflow: 'hidden' }}>
+            <WizardCard
+              run={selectedRun} isNew={isNew} countdown={countdown}
+              onCreated={handleMpsCreated} onRun={handleRunStarted}
+              onViewReport={handleViewReport}
+            />
+            <RunsList
+              runs={runs} selectedPeriod={selectedRun?.period} isNew={isNew}
+              onSelectNew={handleSelectNew} onSelectRun={handleSelectRun}
+            />
+          </div>
+
+          {/* Right column: records panel — hidden on mobile (shown in drawer) */}
+          <div className="records-desktop" style={{ display: 'none', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            <RecordsPanel records={activeRecords} loading={recordsLoading} period={isNew ? null : selectedRun?.period} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Floating "View Records" button — mobile only ────────────────────── */}
+      {!isNew && selectedRun && (
+        <div className="records-fab" style={{ position: 'fixed', bottom: 76, right: 16, zIndex: 45 }}>
+          <button onClick={() => setShowDrawer(true)} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#0F172A', border: '1px solid rgba(99,102,241,0.45)',
+            borderRadius: 99, padding: '10px 18px',
+            color: '#fff', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', fontFamily: 'inherit',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
+          }}>
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke={ACCENT_MUTED} strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Records
+            {activeRecords.length > 0 && (
+              <span style={{
+                background: ACCENT, color: '#fff',
+                fontSize: 10, fontWeight: 700,
+                padding: '1px 7px', borderRadius: 99, minWidth: 20, textAlign: 'center',
+              }}>
+                {activeRecords.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ── Records bottom drawer — mobile only ────────────────────────────── */}
+      {/* Backdrop */}
+      <div className="records-fab"
+        onClick={() => setShowDrawer(false)}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 48,
+          background: 'rgba(0,0,0,0.55)',
+          opacity: showDrawer ? 1 : 0,
+          pointerEvents: showDrawer ? 'auto' : 'none',
+          transition: 'opacity 280ms ease',
+        }} />
+
+      {/* Drawer */}
+      <div className="records-fab" style={{
+        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 49,
+        background: 'var(--surface)',
+        borderRadius: '16px 16px 0 0',
+        border: '1px solid var(--border)',
+        maxHeight: '85dvh',
+        display: 'flex', flexDirection: 'column',
+        transform: showDrawer ? 'translateY(0)' : 'translateY(100%)',
+        transition: 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+      }}>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px' }}>
+          <div style={{ width: 36, height: 4, background: 'var(--border-strong)', borderRadius: 99 }} />
+        </div>
+
+        {/* Drawer header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '6px 16px 12px', borderBottom: '1px solid var(--border)',
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Records</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+              {selectedRun?.period} · {activeRecords.length} employees
+            </div>
+          </div>
+          <button onClick={() => setShowDrawer(false)} style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: 'var(--surface-inset)', border: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit',
+          }}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Records content */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <RecordsPanel records={activeRecords} loading={recordsLoading} period={isNew ? null : selectedRun?.period} />
         </div>
       </div>
-    </div>
+
+      {/* Responsive layout styles */}
+      <style>{`
+        @media (min-width: 768px) {
+          .grid-layout-run { grid-template-columns: 260px 1fr !important; }
+          .records-desktop  { display: flex !important; }
+          .records-fab      { display: none !important; }
+        }
+      `}</style>
+    </>
   );
 }
