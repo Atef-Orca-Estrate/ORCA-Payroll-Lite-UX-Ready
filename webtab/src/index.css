@@ -2,5 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
-* { -webkit-tap-highlight-color: transparent; }
-body { @apply bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100; }
+/* ─── Geist Variable Font — self-hosted ─────────────────────────────────────── */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
+/* All colour decisions are made here. Components reference these tokens.
+   A future rebrand = update values here only. No component file changes. */
+
+:root {
+  /* Accent — Indigo */
+  --accent:           #6366F1;
+  --accent-dark:      #4F46E5;
+  --accent-bg:        #EEF2FF;
+  --accent-border:    #C7D2FE;
+  --accent-text:      #3730A3;
+  --accent-muted:     #818CF8;
+
+  /* Content surfaces — Light mode */
+  --surface:          #FFFFFF;
+  --surface-raised:   #F9FAFB;
+  --surface-inset:    #F3F4F6;
+
+  /* Borders */
+  --border:           #E5E7EB;
+  --border-strong:    #D1D5DB;
+
+  /* Text */
+  --text-primary:     #0F172A;
+  --text-secondary:   #6B7280;
+  --text-muted:       #9CA3AF;
+
+  /* Sidebar — fixed dark regardless of mode */
+  --sidebar-bg:       #0F172A;
+  --sidebar-border:   rgba(255, 255, 255, 0.06);
+  --sidebar-text:     rgba(255, 255, 255, 0.85);
+  --sidebar-muted:    rgba(255, 255, 255, 0.32);
+  --sidebar-active-bg: rgba(99, 102, 241, 0.10);
+
+  /* Status */
+  --success-bg:       #D1FAE5;
+  --success-text:     #065F46;
+  --error-bg:         #FEE2E2;
+  --error-text:       #991B1B;
+  --warning-bg:       #FEF3C7;
+  --warning-text:     #92400E;
+  --info-bg:          #EFF6FF;
+  --info-text:        #1D4ED8;
+}
+
+.dark {
+  /* Content surfaces — Dark mode */
+  --surface:          #111827;
+  --surface-raised:   #1F2937;
+  --surface-inset:    #374151;
+
+  /* Borders */
+  --border:           #1F2937;
+  --border-strong:    #374151;
+
+  /* Text */
+  --text-primary:     #F9FAFB;
+  --text-secondary:   #9CA3AF;
+  --text-muted:       #6B7280;
+
+  /* Accent in dark — softer fills */
+  --accent-bg:        rgba(99, 102, 241, 0.12);
+  --accent-border:    rgba(99, 102, 241, 0.25);
+  --accent-text:      #A5B4FC;
+
+  /* Status — dark mode adjusted */
+  --success-bg:       rgba(16, 185, 129, 0.12);
+  --success-text:     #6EE7B7;
+  --error-bg:         rgba(239, 68, 68, 0.12);
+  --error-text:       #FCA5A5;
+  --warning-bg:       rgba(245, 158, 11, 0.12);
+  --warning-text:     #FCD34D;
+  --info-bg:          rgba(99, 102, 241, 0.10);
+  --info-text:        #A5B4FC;
+}
+
+/* ─── Global base ────────────────────────────────────────────────────────────── */
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background-color: var(--surface-raised);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar — minimal, consistent ───────────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border-strong); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

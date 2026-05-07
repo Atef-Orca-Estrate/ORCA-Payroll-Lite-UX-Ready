@@ -1,21 +1,111 @@
-import { useAuth } from '../context/AuthContext';
+import { useAuth }  from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { FEATURE_REGISTRY, FEATURE_ORDER } from '../config/featureRegistry';
 
-// ─── Desktop Sidebar ─────────────────────────────────────────────────────────
+// ─── OrcaLogo ─────────────────────────────────────────────────────────────────
+// Uses the real Orca Estrate SVG mark. On the dark sidebar (#0F172A) the logo's
+// own dark circular border (#0F1B31) blends with the background, leaving a clean
+// floating white orca silhouette — no extra styling required.
+function OrcaLogo({ size = 32 }) {
+  return (
+    <img
+      src="/orca-logo.svg"
+      alt="Orca Estrate"
+      width={size}
+      height={size}
+      style={{ display: 'block', flexShrink: 0 }}
+      draggable={false}
+    />
+  );
+}
+
+// ─── ThemeToggle ──────────────────────────────────────────────────────────────
+function ThemeToggle() {
+  const { dark, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      style={{
+        width: 28, height: 28,
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', flexShrink: 0,
+        transition: 'background 150ms',
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.10)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+    >
+      {dark ? (
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.55)" strokeWidth={1.8}>
+          <circle cx="12" cy="12" r="5"/>
+          <path strokeLinecap="round" d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+      ) : (
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.55)" strokeWidth={1.8}>
+          <path strokeLinecap="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ─── Sidebar (desktop) ───────────────────────────────────────────────────────
 export function Sidebar({ active, onNavigate }) {
-  const { auth } = useAuth();
+  const { auth }  = useAuth();
   const visibleFeatures = FEATURE_ORDER.filter(f => auth.features.includes(f));
+  const initials = auth.employeeId
+    ? auth.employeeId.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || 'U'
+    : 'U';
 
   return (
-    <aside className="hidden md:flex flex-col w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
-      {/* Logo / header */}
-      <div className="px-5 py-5 border-b border-gray-100 dark:border-gray-800">
-        <div className="text-xs font-semibold text-blue-600 tracking-widest uppercase">Orca</div>
-        <div className="text-base font-semibold text-gray-900 dark:text-gray-100 leading-tight">Payroll Portal</div>
+    <aside style={{
+      width: 220,
+      flexShrink: 0,
+      background: '#0F172A',
+      display: 'none',
+      flexDirection: 'column',
+      borderRight: '1px solid rgba(255,255,255,0.05)',
+    }}
+    className="md:flex"
+    >
+      {/* Brand header */}
+      <div style={{
+        padding: '18px 16px 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 11,
+      }}>
+        <OrcaLogo size={34} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            color: '#fff',
+            fontSize: 13.5,
+            fontWeight: 700,
+            letterSpacing: '0.025em',
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+          }}>
+            ORCA Payroll
+          </div>
+          <div style={{
+            color: 'rgba(255,255,255,0.30)',
+            fontSize: 9,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+            marginTop: 2,
+            whiteSpace: 'nowrap',
+          }}>
+            by Orca Estrate
+          </div>
+        </div>
       </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      {/* Navigation */}
+      <nav style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {visibleFeatures.map(featureKey => {
           const { label, Icon } = FEATURE_REGISTRY[featureKey];
           const isActive = active === featureKey;
@@ -23,12 +113,37 @@ export function Sidebar({ active, onNavigate }) {
             <button
               key={featureKey}
               onClick={() => onNavigate(featureKey)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                ${isActive
-                  ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'}`}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 0,
+                background: isActive ? 'rgba(99,102,241,0.10)' : 'transparent',
+                borderLeft: isActive ? '2.5px solid #6366F1' : '2.5px solid transparent',
+                color: isActive ? '#fff' : 'rgba(255,255,255,0.35)',
+                fontSize: 12.5,
+                fontWeight: isActive ? 500 : 400,
+                cursor: 'pointer',
+                transition: 'all 120ms',
+                textAlign: 'left',
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.35)';
+                }
+              }}
             >
-              <span className={isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}>
+              <span style={{ color: isActive ? '#818CF8' : 'rgba(255,255,255,0.30)', flexShrink: 0 }}>
                 <Icon />
               </span>
               {label}
@@ -37,49 +152,100 @@ export function Sidebar({ active, onNavigate }) {
         })}
       </nav>
 
-      {/* User badge */}
-      <div className="px-4 py-4 border-t border-gray-100 dark:border-gray-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-semibold text-blue-700 dark:text-blue-300">
-            {auth.employeeId?.slice(0, 2).toUpperCase()}
+      {/* User + theme toggle footer */}
+      <div style={{
+        padding: '12px 14px',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 9,
+      }}>
+        {/* Avatar */}
+        <div style={{
+          width: 28, height: 28,
+          borderRadius: '50%',
+          background: 'rgba(99,102,241,0.18)',
+          border: '1px solid rgba(99,102,241,0.30)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <span style={{ color: '#A5B4FC', fontSize: 10, fontWeight: 600 }}>{initials}</span>
+        </div>
+
+        {/* Identity */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            color: 'rgba(255,255,255,0.75)',
+            fontSize: 11,
+            fontWeight: 500,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {auth.employeeId || '—'}
           </div>
-          <div>
-            <div className="text-xs font-medium text-gray-800 dark:text-gray-200">{auth.employeeId}</div>
-            <div className="text-xs text-gray-400 dark:text-gray-600 capitalize">{auth.role}</div>
+          <div style={{
+            color: 'rgba(255,255,255,0.28)',
+            fontSize: 10,
+            textTransform: 'capitalize',
+          }}>
+            {auth.role || '—'}
           </div>
         </div>
+
+        {/* Theme toggle */}
+        <ThemeToggle />
       </div>
     </aside>
   );
 }
 
-// ─── Mobile Bottom Nav ───────────────────────────────────────────────────────
+// ─── Bottom Nav (mobile) ─────────────────────────────────────────────────────
 export function BottomNav({ active, onNavigate }) {
   const { auth } = useAuth();
   const visibleFeatures = FEATURE_ORDER.filter(f => auth.features.includes(f));
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 z-40">
-      <div className="flex">
-        {visibleFeatures.map(featureKey => {
-          const { label, Icon } = FEATURE_REGISTRY[featureKey];
-          const isActive = active === featureKey;
-          return (
-            <button
-              key={featureKey}
-              onClick={() => onNavigate(featureKey)}
-              className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-1 text-xs font-medium transition-colors
-                ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-600'}`}
-            >
-              <span><Icon /></span>
-              <span className="text-[10px]">{label}</span>
-              {isActive && (
-                <span className="absolute bottom-0 w-8 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-t" />
-              )}
-            </button>
-          );
-        })}
-      </div>
+    <nav style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0,
+      background: '#0F172A',
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+      zIndex: 40,
+      display: 'flex',
+    }}
+    className="md:hidden"
+    >
+      {visibleFeatures.map(featureKey => {
+        const { label, Icon } = FEATURE_REGISTRY[featureKey];
+        const isActive = active === featureKey;
+        return (
+          <button
+            key={featureKey}
+            onClick={() => onNavigate(featureKey)}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '10px 4px',
+              gap: 3,
+              color: isActive ? '#818CF8' : 'rgba(255,255,255,0.30)',
+              fontSize: 10,
+              fontWeight: isActive ? 500 : 400,
+              cursor: 'pointer',
+              background: 'transparent',
+              position: 'relative',
+              fontFamily: 'inherit',
+              transition: 'color 120ms',
+              borderTop: isActive ? '2px solid #6366F1' : '2px solid transparent',
+            }}
+          >
+            <Icon />
+            <span>{label}</span>
+          </button>
+        );
+      })}
     </nav>
   );
 }

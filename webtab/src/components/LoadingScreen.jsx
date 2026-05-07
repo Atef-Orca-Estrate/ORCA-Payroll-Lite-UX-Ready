@@ -1,9 +1,103 @@
-// ─── LoadingScreen ────────────────────────────────────────────────────────────
-export function LoadingScreen({ message = 'Loading Payroll Portal…' }) {
+// ─── Branded loading / error screens ─────────────────────────────────────────
+// All screens use the fixed dark brand background (#0F172A) for a consistent
+// first impression regardless of the user's dark/light preference.
+
+const SIDEBAR_BG = '#0F172A';
+const ACCENT     = '#6366F1';
+const ACCENT_DIM = 'rgba(99,102,241,0.12)';
+
+function OrcaMark({ size = 48 }) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center gap-4">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
+    <img
+      src="/orca-logo.svg"
+      alt=""
+      aria-hidden="true"
+      width={size}
+      height={size}
+      style={{ display: 'block' }}
+      draggable={false}
+    />
+  );
+}
+
+// ─── LoadingScreen ────────────────────────────────────────────────────────────
+export function LoadingScreen() {
+  return (
+    <div style={{
+      minHeight: '100dvh',
+      background: SIDEBAR_BG,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+    }}>
+      {/* Logo mark */}
+      <div style={{
+        width: 56, height: 56,
+        background: ACCENT_DIM,
+        borderRadius: 14,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: '1px solid rgba(99,102,241,0.18)',
+      }}>
+        <OrcaMark size={40} />
+      </div>
+
+      {/* Product identity */}
+      <div style={{ textAlign: 'center' }}>
+        <div style={{
+          color: '#fff',
+          fontSize: 15,
+          fontWeight: 700,
+          letterSpacing: '0.03em',
+          lineHeight: 1.2,
+        }}>
+          ORCA Payroll
+        </div>
+        <div style={{
+          color: 'rgba(255,255,255,0.28)',
+          fontSize: 9.5,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          marginTop: 3,
+        }}>
+          by Orca Estrate
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{
+        width: 48,
+        height: 2,
+        background: 'rgba(255,255,255,0.06)',
+        borderRadius: 99,
+        overflow: 'hidden',
+        marginTop: 4,
+      }}>
+        <div style={{
+          height: '100%',
+          width: '40%',
+          background: ACCENT,
+          borderRadius: 99,
+          animation: 'orca-slide 1.4s ease-in-out infinite',
+        }} />
+      </div>
+
+      <div style={{
+        color: 'rgba(255,255,255,0.25)',
+        fontSize: 10,
+        letterSpacing: '0.02em',
+      }}>
+        Initialising portal…
+      </div>
+
+      <style>{`
+        @keyframes orca-slide {
+          0%   { transform: translateX(-120%); }
+          50%  { transform: translateX(80%); }
+          100% { transform: translateX(200%); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -11,17 +105,64 @@ export function LoadingScreen({ message = 'Loading Payroll Portal…' }) {
 // ─── AccessDenied ─────────────────────────────────────────────────────────────
 export function AccessDenied({ employeeId }) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center gap-3 px-6 text-center">
-      <div className="w-14 h-14 bg-red-50 dark:bg-red-950 rounded-full flex items-center justify-center">
-        <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+    <div style={{
+      minHeight: '100dvh',
+      background: SIDEBAR_BG,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      padding: '0 24px',
+      textAlign: 'center',
+    }}>
+      <div style={{
+        width: 52, height: 52,
+        background: 'rgba(239,68,68,0.10)',
+        border: '1px solid rgba(239,68,68,0.20)',
+        borderRadius: 13,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 4,
+      }}>
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24"
+          stroke="rgba(252,165,165,0.9)" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round"
+            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
         </svg>
       </div>
-      <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Access Denied</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-        Your employee ID <span className="font-mono text-gray-700 dark:text-gray-300">{employeeId || '—'}</span> does not have access to the Payroll Portal.
-        Contact your system administrator to request access.
+
+      <div>
+        <div style={{ marginBottom: 6 }}>
+          <OrcaMark size={22} />
+        </div>
+        <div style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>Access Denied</div>
+        <div style={{
+          color: 'rgba(255,255,255,0.28)',
+          fontSize: 9,
+          letterSpacing: '0.07em',
+          textTransform: 'uppercase',
+          marginTop: 2,
+        }}>ORCA Payroll · by Orca Estrate</div>
+      </div>
+
+      <p style={{
+        color: 'rgba(255,255,255,0.45)',
+        fontSize: 12.5,
+        lineHeight: 1.55,
+        maxWidth: 280,
+        marginTop: 4,
+      }}>
+        Employee ID{' '}
+        <span style={{
+          fontFamily: 'monospace',
+          color: 'rgba(255,255,255,0.65)',
+          background: 'rgba(255,255,255,0.06)',
+          padding: '1px 6px',
+          borderRadius: 4,
+        }}>
+          {employeeId || '—'}
+        </span>
+        {' '}does not have access to this portal. Contact your system administrator.
       </p>
     </div>
   );
@@ -30,18 +171,74 @@ export function AccessDenied({ employeeId }) {
 // ─── ErrorScreen ─────────────────────────────────────────────────────────────
 export function ErrorScreen({ message, onRetry }) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center gap-3 px-6 text-center">
-      <div className="w-14 h-14 bg-amber-50 dark:bg-amber-950 rounded-full flex items-center justify-center">
-        <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.924-.833-2.694 0L3.732 16.5c-.77.833.193 2.5 1.732 2.5z" />
+    <div style={{
+      minHeight: '100dvh',
+      background: SIDEBAR_BG,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      padding: '0 24px',
+      textAlign: 'center',
+    }}>
+      <div style={{
+        width: 52, height: 52,
+        background: 'rgba(245,158,11,0.10)',
+        border: '1px solid rgba(245,158,11,0.20)',
+        borderRadius: 13,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginBottom: 4,
+      }}>
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24"
+          stroke="rgba(252,211,77,0.9)" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.924-.833-2.694 0L3.732 16.5c-.77.833.193 2.5 1.732 2.5z"/>
         </svg>
       </div>
-      <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Something went wrong</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">{message}</p>
+
+      <div>
+        <div style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>Something went wrong</div>
+        <div style={{
+          color: 'rgba(255,255,255,0.28)',
+          fontSize: 9,
+          letterSpacing: '0.07em',
+          textTransform: 'uppercase',
+          marginTop: 2,
+        }}>ORCA Payroll · by Orca Estrate</div>
+      </div>
+
+      {message && (
+        <p style={{
+          color: 'rgba(255,255,255,0.40)',
+          fontSize: 12.5,
+          lineHeight: 1.55,
+          maxWidth: 280,
+          marginTop: 4,
+        }}>
+          {message}
+        </p>
+      )}
+
       {onRetry && (
-        <button onClick={onRetry}
-          className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 active:scale-95 transition-all">
+        <button
+          onClick={onRetry}
+          style={{
+            marginTop: 8,
+            padding: '8px 20px',
+            background: ACCENT,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 7,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            transition: 'opacity 120ms',
+          }}
+          onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+        >
           Retry
         </button>
       )}

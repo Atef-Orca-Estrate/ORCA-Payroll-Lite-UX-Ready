@@ -81,16 +81,30 @@ export default function Shell() {
 
       {/* Main content — flex column so RunPayroll can fill remaining height */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden pb-16 md:pb-0">
-        {/* Mobile page header */}
-        <div className="md:hidden flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-blue-600 tracking-widest uppercase">Orca</div>
-            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Payroll Portal</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-semibold text-blue-700 dark:text-blue-300">
-              {auth.employeeId?.slice(0, 2).toUpperCase()}
+        {/* Mobile page header — fixed dark brand bar */}
+        <div className="md:hidden flex-shrink-0 flex items-center justify-between px-4 py-3"
+          style={{ background: '#0F172A', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <img src="/orca-logo.svg" alt="" aria-hidden="true" width={26} height={26}
+              style={{ display: 'block', flexShrink: 0 }} draggable={false} />
+            <div>
+              <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: '0.025em', lineHeight: 1.2 }}>
+                ORCA Payroll
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.28)', fontSize: 8.5, letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: 1 }}>
+                by Orca Estrate
+              </div>
             </div>
+          </div>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: 'rgba(99,102,241,0.18)',
+            border: '1px solid rgba(99,102,241,0.30)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ color: '#A5B4FC', fontSize: 10, fontWeight: 600 }}>
+              {auth.employeeId?.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || 'U'}
+            </span>
           </div>
         </div>
 
