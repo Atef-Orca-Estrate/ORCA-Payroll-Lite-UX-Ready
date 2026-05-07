@@ -921,7 +921,21 @@ Format: `[YYYY-MM-DD | N] type: title`
 
 ---
 
-*(No UI changes confirmed yet — work begins after this document is committed.)*
+### [2026-05-07 | 01] refactor: feature registry — single source of truth for all feature definitions
+
+**Decision:** Replace scattered feature registration (FEATURE_ORDER array in Nav.jsx, ICONS object in Nav.jsx, FEATURE_LABELS map in permissions.js, FEATURE_COMPONENTS map in Shell.jsx) with a single `featureRegistry.jsx` file.
+
+**Rationale:** Adding a new feature previously required touching 4 separate files — a maintenance liability that grows with every new feature. The registry pattern reduces that to one entry in one file. Confirmed approach after discussion on `minRoles` enforcement: the field is informational only. The server-returned `features[]` array is the sole runtime access gate — client-side role enforcement would require a frontend deploy for every new role added in Zoho, which is the wrong trade.
+
+**Files changed:**
+- `webtab/src/config/featureRegistry.jsx` — **new file**. Icons, components, labels, order, minRoles all co-located per feature. Exports `FEATURE_REGISTRY` object and derived `FEATURE_ORDER` array.
+- `webtab/src/components/Shell.jsx` — removed 4 feature imports + `FEATURE_COMPONENTS` map. Added `FEATURE_REGISTRY` import. `ActiveComponent` now resolved via `FEATURE_REGISTRY[activeFeature]?.component`.
+- `webtab/src/components/Nav.jsx` — removed `FEATURE_ORDER` array, `ICONS` object, `FEATURE_LABELS` import. Both `Sidebar` and `BottomNav` now read `label` and `Icon` directly from `FEATURE_REGISTRY`.
+- `webtab/src/utils/permissions.js` — removed `FEATURE_LABELS` export (labels now live in registry). `resolvePermissions` function unchanged.
+
+**Behaviour change:** None — zero visible difference to the user. Pure refactor.
+
+**Backend implication:** None.
 
 ---
 
@@ -963,7 +977,7 @@ Status values: `[ ] Not built` · `[~] In progress` · `[x] Built` · `[!] Needs
 ### Frontend
 | # | Item | Priority | Notes |
 |---|------|----------|-------|
-| F1 | Feature registry refactor (`featureRegistry.js`) | High | Before any new feature is added |
+| F1 | Feature registry refactor (`featureRegistry.jsx`) | ~~High~~ **Done** | Completed 2026-05-07 |
 | F2 | Fix Bug #1 — Settings addUser/removeUser gateway routing | High | — |
 | F3 | RunPayroll mobile layout — `grid-cols-[260px_1fr]` needs responsive breakpoint | High | — |
 | F4 | Typography — add custom font (Plus Jakarta Sans) | Medium | Layer 2 visual foundation work |

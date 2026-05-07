@@ -5,17 +5,7 @@ import { useGateway }    from '../hooks/useGateway';
 import { resolvePermissions } from '../utils/permissions';
 import { LoadingScreen, AccessDenied, ErrorScreen } from './LoadingScreen';
 import { Sidebar, BottomNav } from './Nav';
-import QueueMonitor from '../features/QueueMonitor';
-import Reports      from '../features/Reports';
-import RunPayroll   from '../features/RunPayroll';
-import Settings     from '../features/Settings';
-
-const FEATURE_COMPONENTS = {
-  feature_run_payroll:   RunPayroll,
-  feature_queue_monitor: QueueMonitor,
-  feature_reports:       Reports,
-  feature_settings:      Settings
-};
+import { FEATURE_REGISTRY }   from '../config/featureRegistry';
 
 export default function Shell() {
   const { auth, setAuth } = useAuth();
@@ -80,7 +70,7 @@ export default function Shell() {
   if (auth.denied) return <AccessDenied employeeId={auth.employeeId} />;
 
   // ── Main Layout ──────────────────────────────────────────────────────────
-  const ActiveComponent = activeFeature ? FEATURE_COMPONENTS[activeFeature] : null;
+  const ActiveComponent = activeFeature ? FEATURE_REGISTRY[activeFeature]?.component : null;
 
   const isRunPayroll = activeFeature === 'feature_run_payroll';
 

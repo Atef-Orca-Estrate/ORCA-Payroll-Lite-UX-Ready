@@ -49,3 +49,34 @@ Session-scoped mutable state: `_createdPeriods`, `_triggerAttempts`, `_portalUse
 **File:** `README-LOCAL-DEV.md` — new file
 - Step-by-step local run instructions: clone, branch, npm install, npm run dev
 - Documents mock user, active error simulations, and pre-deployment checklist
+
+---
+
+## [2026-05-07 | 03] refactor: feature registry — single source of truth for all feature definitions
+
+**Why:** Feature registration was scattered across 4 files (FEATURE_ORDER array, ICONS object, FEATURE_LABELS map, FEATURE_COMPONENTS map). Adding a new feature required touching all 4. Registry pattern reduces it to one entry in one file.
+
+**Decision logged:** `minRoles` field is informational only — server-returned `features[]` array is the sole runtime access gate. Client-side role enforcement rejected: would require a frontend deploy for every new role added in Zoho.
+
+**File:** `webtab/src/config/featureRegistry.jsx` — new file
+- `FEATURE_REGISTRY` object: one entry per feature with `label`, `Icon`, `component`, `order`, `minRoles`
+- `FEATURE_ORDER` derived export: sorted array of feature keys for nav components
+- Icons (4 inline SVG components) moved here from Nav.jsx — co-located with feature definitions
+
+**File:** `webtab/src/components/Shell.jsx`
+- Removed: 4 individual feature imports (RunPayroll, QueueMonitor, Reports, Settings)
+- Removed: `FEATURE_COMPONENTS` map
+- Added: `import { FEATURE_REGISTRY } from '../config/featureRegistry'`
+- Changed: `FEATURE_COMPONENTS[activeFeature]` → `FEATURE_REGISTRY[activeFeature]?.component`
+
+**File:** `webtab/src/components/Nav.jsx`
+- Removed: `FEATURE_ORDER` array, `ICONS` object, `FEATURE_LABELS` import
+- Added: `import { FEATURE_REGISTRY, FEATURE_ORDER } from '../config/featureRegistry'`
+- Both `Sidebar` and `BottomNav` now destructure `{ label, Icon }` from `FEATURE_REGISTRY[featureKey]`
+
+**File:** `webtab/src/utils/permissions.js`
+- Removed: `FEATURE_LABELS` export (labels now live in featureRegistry.jsx)
+- `resolvePermissions` function: unchanged
+
+**Behaviour change:** None — pure refactor, zero visible difference to user.
+**Build verified:** ✓ clean build, 45 modules, no errors or warnings.
