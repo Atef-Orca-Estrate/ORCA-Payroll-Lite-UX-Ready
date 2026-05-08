@@ -41,7 +41,10 @@ export default function Shell() {
           return;
         }
 
-        setActiveFeature(features[0] || null);
+        // Default to first feature by FEATURE_ORDER priority (not features[0] which depends on role array order)
+        const { FEATURE_ORDER } = await import('../config/featureRegistry.jsx');
+        const defaultFeature = FEATURE_ORDER.find(k => features.includes(k)) || null;
+        setActiveFeature(defaultFeature);
         setAuth({
           loading:         false,
           denied:          false,

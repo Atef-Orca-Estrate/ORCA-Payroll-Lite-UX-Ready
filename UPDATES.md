@@ -413,3 +413,54 @@ RunPayroll and QueueMonitor empty states were already conformant.
 - Full product decision history now documented for backend consultant
 
 **Build verified:** ✓ clean, no errors.
+
+---
+
+## [2026-05-08 | 10] fix: full cycle mock + default landing screen
+
+**Why:** End-to-end cycle testing revealed 4 issues preventing a complete new-period payroll run in DEV_MODE.
+
+### Fix 1 — Default landing screen (Shell.jsx)
+`features[0]` resolved to `feature_settings` because `portal_roles.admin` listed Settings first.
+Even after Fix 2 reorders the array, taking `features[0]` is fragile — it depends on role array order.
+Fixed: resolve default via `FEATURE_ORDER.find(k => features.includes(k))` — uses featureRegistry priority (Run Payroll = order 1) regardless of role array order.
+
+### Fix 2 — Admin role array order (mockData.js)
+`portal_roles.admin` reordered: `feature_run_payroll` now first, `feature_settings` last.
+Matches expected product behaviour — payroll is the primary action, not settings.
+
+### Fix 3 — Session-aware portalGetQueueStatus (mockData.js)
+Previously: any period not in static routing (`2026-04`, `2026-03`, `2026-05`) returned `code: no_run`.
+This meant newly created periods were stuck in Processing forever during polling.
+
+Added `_sessionRuns` module-level map. When `portalTriggerOrchestrator` fires for a session run,
+the run is registered as `Processing` with `pollCount: 0`.
+
+Poll-driven transition:
+- pollCount 0: done=3, pending=6, processing=1
+- pollCount 1: done=6, pending=3, processing=1
+- pollCount 2: done=9, pending=0, processing=1
+- pollCount 3+: → Completed (done=10, status updates)
+
+On Completed: RunPayroll triggers `portalGetPayrollRecords` forceRefresh — returns 10 session employees with realistic payroll figures via `_buildSessionPayrollRecords()`.
+
+### Fix 4 — Session-aware portalListRuns (mockData.js)
+`mock_portalListRuns` now prepends session runs to the historical list.
+Session runs appear in the runs list immediately after `portalCreateMPS` — sorted newest first.
+Status updates (Draft → Processing → Completed) reflected on re-render via live session state.
+
+### Also fixed in mockData.js
+- `mock_portalTriggerOrchestrator`: session-created periods skip lock-conflict simulation — succeed immediately. Hardcoded periods retain the first-attempt lock error (correct error path testing).
+- `mock_portalGetPayrollRecords`: returns `_buildSessionPayrollRecords` for completed session runs.
+- `mock_portalGetPeriodReport`: returns session run summary for completed session runs; error for non-completed.
+
+### Full cycle now testable
+1. Open portal → lands on Run Payroll ✓
+2. Pick any new period (e.g. 2026-07) → Create setup → MPS created ✓
+3. Review step → Run payroll → Triggers immediately ✓
+4. Step 3 Running → polls every 30s → 3 ticks → transitions to Completed ✓
+5. Step 4 Complete → shows 10 employees, financial totals ✓
+6. View period report → Reports pre-filled, Generate → session summary ✓
+7. Queue Monitor → same new period shows Processing → Completed ✓
+
+**Build verified:** ✓ clean, no errors.

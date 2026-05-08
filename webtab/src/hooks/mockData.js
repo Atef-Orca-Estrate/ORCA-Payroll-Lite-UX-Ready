@@ -22,6 +22,57 @@ let _triggerAttempts = {};
 // Tracks portal users so portalAddPortalUser can simulate duplicate errors.
 let _portalUsers = { EMP001: 'admin', EMP002: 'manager' };
 
+// ── Session run state — enables full end-to-end cycle for new periods ─────────
+// Populated by portalCreateMPS + portalTriggerOrchestrator.
+// Read by portalListRuns + portalGetQueueStatus + portalGetPayrollRecords.
+//
+// Shape per entry:
+//   { period, status, working_days, employees, batches,
+//     done, error, pending, holidays, gross, net, tax, si,
+//     pollCount }   ← pollCount drives simulated Processing→Completed transition
+let _sessionRuns = {};
+
+// Build mock employee records for a session run (2 batches of 5)
+function _buildSessionRecords(period, pollCount) {
+  const doneCount = Math.min(10, pollCount * 3 + 3);
+  const records = [];
+  for (let i = 1; i <= 10; i++) {
+    const batchNum  = i <= 5 ? 1 : 2;
+    const empId     = `SES${String(i).padStart(3, '0')}`;
+    const isDone    = i <= doneCount;
+    const isActive  = !isDone && i === doneCount + 1;
+    records.push({
+      employee_id:  empId,
+      status:       isDone ? 'Done' : isActive ? 'Processing' : 'Pending',
+      batch_number: batchNum,
+      processed_at: isDone ? `09:${String(14 + i).padStart(2, '0')}` : '',
+      error:        '',
+    });
+  }
+  return records;
+}
+
+// Build mock payroll records for a completed session run
+function _buildSessionPayrollRecords(period) {
+  return Array.from({ length: 10 }, (_, i) => ({
+    employee_id:               `SES${String(i + 1).padStart(3, '0')}`,
+    status:                    'Done',
+    pr_basic_salary:           25000 + i * 1000,
+    pr_total_allowances:       8000,
+    pr_gross_salary:           33000 + i * 1000,
+    pr_employee_si_deduction:  2750,
+    pr_martyrs_fund:           16.5,
+    pr_absence_deduction:      0,
+    pr_unpaid_leave_deduction: 0,
+    pr_late_deduction:         0,
+    pr_total_deductions:       5100,
+    pr_net_salary:             27900 + i * 1000,
+    pr_monthly_tax_withheld:   2200,
+    pr_ytd_tax_withheld:       6600,
+    error:                     '',
+  }));
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOCK RESPONSES
@@ -61,7 +112,7 @@ export function mock_portalGetSettings() {
     portal_config: {
       portal_users:                _portalUsers,
       portal_roles: {
-        admin:   ['feature_settings', 'feature_run_payroll', 'feature_queue_monitor', 'feature_reports'],
+        admin:   ['feature_run_payroll', 'feature_queue_monitor', 'feature_reports', 'feature_settings'],
         manager: ['feature_run_payroll', 'feature_queue_monitor', 'feature_reports'],
       },
       default_holiday_source:      'zoho',
@@ -74,11 +125,32 @@ export function mock_portalGetSettings() {
  * portalListRuns
  * Returns all MPS records — period, status, progress counters, and
  * financial totals for completed runs (used by Step 4 wizard card).
+ * Includes any runs created during this browser session.
  */
 export function mock_portalListRuns() {
+  // Session runs — sorted newest first
+  const sessionList = Object.values(_sessionRuns)
+    .sort((a, b) => b.period.localeCompare(a.period))
+    .map(r => ({
+      period:       r.period,
+      status:       r.status,
+      employees:    r.employees,
+      working_days: r.working_days,
+      batches:      r.batches,
+      done:         r.done,
+      error:        r.error,
+      pending:      r.pending,
+      holidays:     r.holidays,
+      gross:        r.status === 'Completed' ? r.gross : null,
+      net:          r.status === 'Completed' ? r.net   : null,
+      tax:          r.status === 'Completed' ? r.tax   : null,
+      si:           r.status === 'Completed' ? r.si    : null,
+    }));
+
   return {
     status: 'success',
     runs: [
+      ...sessionList,
       {
         period:       '2026-04',
         status:       'Processing',
@@ -162,9 +234,84 @@ export function mock_portalListRuns() {
  * portalGetQueueStatus
  * Returns MPS status and per-queue progress for a given period.
  * Used by QueueMonitor and RunPayroll polling.
+ *
+ * Session-created periods: polls drive Processing→Completed transition.
+ *   pollCount 0–1 → Processing (partial progress)
+ *   pollCount 2   → Processing (near complete)
+ *   pollCount 3+  → Completed
  */
 export function mock_portalGetQueueStatus({ payroll_period } = {}) {
-  // ── State routing by period ──────────────────────────────────────────────
+
+  // ── Session run — full cycle simulation ───────────────────────────────────
+  if (_sessionRuns[payroll_period]) {
+    const run = _sessionRuns[payroll_period];
+
+    if (run.status === 'Draft') {
+      return {
+        status: 'success', mps_status: 'Draft', mps_working_days: run.working_days,
+        progress: { total: 0, done: 0, error: 0, pending: 0, processing: 0 },
+        regular_run:     { summary: { total: 0, done: 0, error: 0, pending: 0 }, records: [] },
+        termination_run: { summary: { total: 0, done: 0, error: 0, pending: 0 }, records: [] },
+      };
+    }
+
+    if (run.status === 'Processing') {
+      // Advance poll counter
+      run.pollCount = (run.pollCount || 0) + 1;
+
+      // Transition to Completed after 3 polls
+      if (run.pollCount >= 3) {
+        run.status  = 'Completed';
+        run.done    = 10;
+        run.pending = 0;
+        run.error   = 0;
+        run.gross   = 330000;
+        run.net     = 270900;
+        run.tax     = 22000;
+        run.si      = 27500;
+      } else {
+        // Progressive counts per poll tick
+        const doneCount = Math.min(9, run.pollCount * 3 + 3);
+        run.done        = doneCount;
+        run.pending     = Math.max(0, 10 - doneCount - 1);
+        run.error       = 0;
+      }
+    }
+
+    if (run.status === 'Completed') {
+      const completedRecords = _buildSessionRecords(payroll_period, 99);
+      return {
+        status:           'success',
+        mps_status:       'Completed',
+        mps_working_days: run.working_days,
+        progress: { total: 10, done: 10, error: 0, pending: 0, processing: 0 },
+        regular_run: {
+          summary: { total: 10, done: 10, error: 0, pending: 0 },
+          records:  completedRecords,
+        },
+        termination_run: { summary: { total: 0, done: 0, error: 0, pending: 0 }, records: [] },
+      };
+    }
+
+    // Processing response — use current run state
+    const liveRecords   = _buildSessionRecords(payroll_period, run.pollCount);
+    const processing    = liveRecords.filter(r => r.status === 'Processing').length;
+    const pending       = liveRecords.filter(r => r.status === 'Pending').length;
+    const done          = liveRecords.filter(r => r.status === 'Done').length;
+    return {
+      status:           'success',
+      mps_status:       'Processing',
+      mps_working_days: run.working_days,
+      progress: { total: 10, done, error: 0, pending, processing },
+      regular_run: {
+        summary: { total: 10, done, error: 0, pending: pending + processing },
+        records:  liveRecords,
+      },
+      termination_run: { summary: { total: 0, done: 0, error: 0, pending: 0 }, records: [] },
+    };
+  }
+
+  // ── Static period routing ─────────────────────────────────────────────────
   // 2026-04  → Processing  (active run, mix of done/processing/pending/errors)
   // 2026-03  → Completed   (finished run, all done, 3 batches)
   // 2026-05  → Draft       (setup exists, run not triggered)
@@ -235,6 +382,16 @@ export function mock_portalGetQueueStatus({ payroll_period } = {}) {
  * Cached client-side after first fetch — no duplicate calls per period.
  */
 export function mock_portalGetPayrollRecords({ payroll_period } = {}) {
+  // Session run — return generated records if completed
+  if (_sessionRuns[payroll_period]) {
+    const run = _sessionRuns[payroll_period];
+    if (run.status === 'Completed') {
+      return { status: 'success', period: payroll_period, records: _buildSessionPayrollRecords(payroll_period) };
+    }
+    // Not yet complete — return empty (records panel shows loading/pending state)
+    return { status: 'success', period: payroll_period, records: [] };
+  }
+
   const recordsByPeriod = {
     '2026-04': [
       { employee_id: 'EMP001', status: 'Done',       pr_basic_salary: 30000, pr_total_allowances: 11000, pr_gross_salary: 41000,  pr_employee_si_deduction: 3300,  pr_martyrs_fund: 20.5, pr_absence_deduction: 0,    pr_unpaid_leave_deduction: 0,    pr_late_deduction: 0,   pr_total_deductions: 6120,  pr_net_salary: 34200, pr_monthly_tax_withheld: 2800, pr_ytd_tax_withheld: 8400,  error: '' },
@@ -284,6 +441,25 @@ export function mock_portalGetPayrollRecords({ payroll_period } = {}) {
  * Used exclusively by the Reports screen.
  */
 export function mock_portalGetPeriodReport({ payroll_period } = {}) {
+  // Session run — return generated summary if completed
+  if (_sessionRuns[payroll_period]) {
+    const run = _sessionRuns[payroll_period];
+    if (run.status !== 'Completed') {
+      return { status: 'error', message: `No completed report available for period ${payroll_period}` };
+    }
+    return {
+      status: 'success',
+      period: payroll_period,
+      generated_at: new Date().toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit' }),
+      summary: {
+        headcount: 10, termination_count: 0,
+        total_gross: 330000, total_basic_salary: 295000, total_allowances: 80000, total_net_salary: 270900,
+        total_employee_si: 27500, total_employer_si: 61875, total_martyrs_fund: 165,
+        total_tax_withheld: 22000, total_employer_cost: 392040,
+      },
+    };
+  }
+
   const reports = {
     '2026-04': null, // still processing — no report yet
     '2026-03': {
@@ -340,6 +516,26 @@ export function mock_portalCreateMPS({ payroll_period } = {}) {
     };
   }
   _createdPeriods.add(payroll_period);
+
+  // Register in session run state so portalListRuns and portalGetQueueStatus
+  // can serve this period throughout the full cycle
+  _sessionRuns[payroll_period] = {
+    period:       payroll_period,
+    status:       'Draft',
+    working_days: 22,
+    employees:    0,
+    batches:      0,
+    done:         0,
+    error:        0,
+    pending:      0,
+    holidays:     'No public holidays this period',
+    pollCount:    0,
+    gross:        null,
+    net:          null,
+    tax:          null,
+    si:           null,
+  };
+
   return {
     status:       'success',
     period:       payroll_period,
@@ -367,14 +563,37 @@ export function mock_portalUpdateMPS({ payroll_period, new_working_days } = {}) 
  * portalTriggerOrchestrator
  * Enqueues all active employees for the given period and kicks off the run.
  *
- * ERROR SIMULATION: First call for a new period returns a lock conflict error.
- * Second call succeeds. This simulates an orchestrator concurrency guard.
+ * ERROR SIMULATION: First call for a hardcoded period returns a lock conflict.
+ * Second call succeeds. Session-created periods always succeed immediately —
+ * no lock simulation needed for clean cycle testing.
  */
 export function mock_portalTriggerOrchestrator({ payroll_period } = {}) {
+  // For session-created periods — always succeed, no lock simulation
+  if (_sessionRuns[payroll_period]) {
+    _sessionRuns[payroll_period] = {
+      ..._sessionRuns[payroll_period],
+      status:    'Processing',
+      employees: 10,
+      batches:   2,
+      pending:   10,
+      done:      0,
+      error:     0,
+      pollCount: 0,
+    };
+    _createdPeriods.add(payroll_period + '_triggered');
+    return {
+      status:  'success',
+      period:  payroll_period,
+      queued:  10,
+      batches: 2,
+      message: `Payroll run started — 10 employees queued in 2 batches`,
+    };
+  }
+
+  // For hardcoded periods — simulate lock conflict on first attempt
   const attempts = _triggerAttempts[payroll_period] || 0;
   _triggerAttempts[payroll_period] = attempts + 1;
 
-  // ERROR SIMULATION — first attempt fails with lock conflict
   if (attempts === 0 && !_createdPeriods.has(payroll_period + '_triggered')) {
     return {
       status:  'error',
