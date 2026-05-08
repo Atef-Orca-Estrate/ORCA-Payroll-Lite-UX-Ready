@@ -213,3 +213,54 @@ Session-scoped mutable state: `_createdPeriods`, `_triggerAttempts`, `_portalUse
 
 **Behaviour change:** Visible — mobile layout fixed, all colors aligned, drawer navigation added, Reports pre-fills from RunPayroll.
 **Build verified:** ✓ clean build, no errors.
+
+---
+
+## [2026-05-08 | 06] feat: QueueMonitor — full redesign, 4 states, batch groups, live monitor
+
+**Why:** QueueMonitor had no state handling beyond Processing, used card layout (unusable at scale), had no error filtering, polled constantly regardless of visibility, and showed a toast error for the valid "no run" state.
+
+### Architecture decisions locked before build
+- `exit_date` on termination records: dropped from UI — not in backend contract
+- Financial totals in QueueMonitor: not shown — users go to Reports
+- `total_batches`: derived client-side from `Math.max(...records.map(r => r.batch_number))`
+- `code: 'no_run'` on error response: NEW requirement added to `portalGetQueueStatus` contract
+
+### Four states implemented
+- **None** (`code: 'no_run'` error): EmptyState — icon, message, "Go to Run Payroll" button
+- **Draft**: EmptyState — "Setup exists, not triggered", "Start run →" navigates to RunPayroll
+- **Processing**: Full live view with pulsing indicator, progress, 4-stat tiles, batch groups, polling
+- **Completed**: Green final summary header (counts only, no financials), batch-grouped records
+
+### New components
+- `PeriodHeader` — always visible, all states. Period picker, live dot, "Updated HH:MM · ↻ in Xs", refresh button, "View in Run Payroll →" cross-nav link
+- `ProcessingOverview` — progress bar (8px, indigo), 4-stat tiles (Done/Processing/Pending/Errors separately), batch count derived from records, working days
+- `CompletedOverview` — green header, final counts, error note with "will not auto-retry" message
+- `StatTile` — reusable count tile with colored background
+- `BatchGroup` — collapsible batch header (color-coded by batch status: done/processing/errors/pending), expand/collapse chevron, per-batch summary counts, `defaultOpen` when batch has errors or active records
+- `QueueRow` — compact row replacing `rounded-xl p-4` cards: employee ID (monospace), status badge (pill, no border), processed_at or status text, dedicated error sub-line + "Requires manual review" for Error records, "Final settlement" tag for termination records
+- `RecordsSection` — Regular/Termination tabs (indigo active), Errors-only toggle (cross-batch filter, shows flat error list with count header), empty states per tab
+- `EmptyState` — handles none/draft with appropriate icon, message, CTA button
+- `Spinner` — shared indigo spinner component
+
+### Key behaviors
+- **Auto-load current month on open** — fires on mount, period change clears and reloads
+- **Polling: Processing only** — `setInterval` created only when `mps_status === 'Processing'`, cleared on Completed/Draft/none
+- **Visibility-based pause** — `document.visibilitychange` listener: pauses poll timers when tab hidden, resumes + immediate refresh on focus
+- **Last updated timestamp** — `new Date()` captured on each successful load, displayed as HH:MM
+- **Error handling**: `code: 'no_run'` → EmptyState (no toast); other errors → toast
+- **Cross-navigation**: "View in Run Payroll →" and EmptyState CTAs call `onNavigate('feature_run_payroll', { period })`
+- **Batch defaultOpen**: batches with Error or Processing records auto-expand on load
+
+### Mock updates
+**File:** `webtab/src/hooks/mockData.js` — `mock_portalGetQueueStatus`
+- `'2026-04'` → Processing (unchanged logic, now explicit)
+- `'2026-03'` → Completed (expanded to 12 employees across 3 batches, 1 error, 1 termination record)
+- `'2026-05'` → Draft (new state)
+- Any other period → `{ status: 'error', code: 'no_run', message: '...' }` (new state)
+
+### WEBTAB_SPEC.md updates
+- Section 5 `portalGetQueueStatus`: contract fully rewritten — 4 response shapes, `code: 'no_run'` requirement, field notes updated (no exit_date, no financials, no total_batches)
+- Section 9 Backend Implications: BI-01 entry logged (3 confirmed non-requirements + new `code` requirement)
+
+**Build verified:** ✓ clean, 45 modules, no errors.

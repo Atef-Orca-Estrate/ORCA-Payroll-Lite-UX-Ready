@@ -354,17 +354,17 @@ Format: inputs → expected response shapes → UI behaviour per outcome.
 ### `portalGetQueueStatus`
 
 **Called by:**
+- QueueMonitor/index.jsx — on mount (auto-loads current month), on period change, and polls every 30s when `mps_status === 'Processing'`
 - RunPayroll/index.jsx — polls every 30s when selected run has status `Processing`
-- QueueMonitor/index.jsx — polls every 30s always while screen is active
 
-**Purpose:** Returns live queue state for a period — MPS status, progress counters, and per-employee record array for both run types.
+**Purpose:** Returns live queue state for a period — MPS status, progress counters, and per-employee record arrays for both run types. Handles all four possible states: no run, Draft, Processing, Completed.
 
 **Input:**
 ```json
 { "payroll_period": "2026-04" }
 ```
 
-**Success response:**
+**Success response — Processing or Completed:**
 ```json
 {
   "status":           "success",
@@ -380,20 +380,10 @@ Format: inputs → expected response shapes → UI behaviour per outcome.
   "regular_run": {
     "summary": { "total": 10, "done": 3, "error": 2, "pending": 5 },
     "records": [
-      {
-        "employee_id":  "EMP001",
-        "status":       "Done",
-        "batch_number": 1,
-        "processed_at": "09:15",
-        "error":        ""
-      },
-      {
-        "employee_id":  "EMP004",
-        "status":       "Error",
-        "batch_number": 1,
-        "processed_at": "09:16",
-        "error":        "Missing emp_basic_salary field"
-      }
+      { "employee_id": "EMP001", "status": "Done",       "batch_number": 1, "processed_at": "09:15", "error": "" },
+      { "employee_id": "EMP004", "status": "Error",      "batch_number": 1, "processed_at": "09:16", "error": "Missing emp_basic_salary field" },
+      { "employee_id": "EMP006", "status": "Processing", "batch_number": 2, "processed_at": "",      "error": "" },
+      { "employee_id": "EMP009", "status": "Pending",    "batch_number": 3, "processed_at": "",      "error": "" }
     ]
   },
   "termination_run": {
@@ -403,34 +393,52 @@ Format: inputs → expected response shapes → UI behaviour per outcome.
 }
 ```
 
-**Field notes:**
-- `processed_at`: HH:MM string, or empty string `""` for non-Done records
-- `error`: Error message string, or empty string `""` for non-Error records
-- `progress.pending` + `progress.processing` = total not yet done (RunPayroll uses combined count)
-- `termination_run.records` may be empty array — UI renders "No termination records" message
-- `mps_status` values the UI reacts to: `"Processing"`, `"Completed"`, `"Draft"`, `"Ready"`
-
-**Error response:**
+**Success response — Draft (setup exists, run not triggered):**
 ```json
-{ "status": "error", "message": "..." }
+{
+  "status":           "success",
+  "mps_status":       "Draft",
+  "mps_working_days": 22,
+  "progress": { "total": 0, "done": 0, "error": 0, "pending": 0, "processing": 0 },
+  "regular_run":     { "summary": { "total": 0, "done": 0, "error": 0, "pending": 0 }, "records": [] },
+  "termination_run": { "summary": { "total": 0, "done": 0, "error": 0, "pending": 0 }, "records": [] }
+}
 ```
 
-**UI behaviour (RunPayroll):**
-- Updates `selectedRun.done`, `selectedRun.error`, `selectedRun.pending`, `selectedRun.status`
-- When `mps_status` transitions to `"Completed"` → triggers one `portalGetPayrollRecords` call with `forceRefresh: true`
-- Polling stops automatically once `mps_status !== 'Processing'`
+**Error response — no MPS found for period:**
+```json
+{ "status": "error", "code": "no_run", "message": "No payroll run found for period 2026-05" }
+```
 
-**UI behaviour (QueueMonitor):**
-- Renders progress bar and per-employee cards in two tabs (Regular / Termination)
-- Always polls regardless of status
+**IMPORTANT:** The `code: "no_run"` field is required. The UI uses it to distinguish "no run found" (valid empty state → renders EmptyState component, no toast) from genuine errors (API failure, permissions etc → toast shown). Without `code`, the UI cannot tell the difference.
+
+**Field notes:**
+- `processed_at`: HH:MM string or empty string `""` — never null
+- `error`: Error message string or empty string `""` — never null
+- `batch_number`: Integer starting at 1. QueueMonitor groups records by batch_number client-side. No `total_batches` field required — derived as `Math.max(...records.map(r => r.batch_number))`
+- `progress.processing`: Count of records with `pq_status = 'Processing'` — shown separately from `progress.pending` in QueueMonitor (four-tile stat row: Done / Processing / Pending / Errors)
+- `termination_run.records`: Records where `pq_is_final_settlement = true`. No `exit_date` field — UI does not display it (decision: 2026-05-08)
+- Financial totals: NOT required in this response. QueueMonitor does not display financial data — users navigate to Reports for that (decision: 2026-05-08)
+
+**UI behaviour — QueueMonitor:**
+- `mps_status: 'none'` (via `code: 'no_run'` error) → EmptyState "No payroll run for [period]" + navigate to Run Payroll button
+- `mps_status: 'Draft'` → EmptyState "Setup exists, not triggered" + "Start run →" button navigating to Run Payroll
+- `mps_status: 'Processing'` → Live view: progress bar, 4-stat tiles, batch-grouped collapsible records, polls every 30s (pauses when browser tab hidden)
+- `mps_status: 'Completed'` → Final summary: green completed header with total/error/batch/working-days counts, batch-grouped records, polling stops
+
+**UI behaviour — RunPayroll:**
+- Updates `selectedRun` progress counts
+- When `mps_status` transitions to `'Completed'` → triggers `portalGetPayrollRecords` with `forceRefresh: true`
+- Polling stops automatically once `mps_status !== 'Processing'`
 
 **Backend implementation notes:**
 - Read `Monthly_Payroll_Setup` where `mps_payroll_period` = input period
-- Read all `Payroll_Queue` records where `pq_payroll_period` = input period
-- Separate records by `pq_is_final_settlement`: false → regular_run, true → termination_run
+- If no record found → return `{ status: 'error', code: 'no_run', message: '...' }`
+- If found with `mps_status = 'Draft'` → return Draft response shape (zero counts, empty arrays)
+- Otherwise read all `Payroll_Queue` records where `pq_payroll_period` = input period
+- Separate by `pq_is_final_settlement`: false → regular_run, true → termination_run
 - `processing` count = records with `pq_status = 'Processing'`
-- `pending` in summary = `pq_status = 'Pending'` only (not combined with processing)
-- Note: RunPayroll combines `pending + processing` into its `run.pending` display field
+- `pending` = records with `pq_status = 'Pending'` only
 
 ---
 
@@ -946,7 +954,21 @@ Entries are added at the same time as the corresponding UI Decision Log entry.
 
 ---
 
-*(No entries yet — populated as UI decisions are confirmed.)*
+### [2026-05-08 | BI-01] QueueMonitor — three contract clarifications
+
+**Decisions confirmed after UI design session:**
+
+1. **`exit_date` field on termination records — NOT required.**
+   `TerminationCard` previously rendered `rec.exit_date` which was never in the contract. Decision: UI drops this field entirely. Termination records shape is identical to regular records: `{ employee_id, status, batch_number, processed_at, error }`. Backend does NOT need to add exit_date to queue records.
+
+2. **Financial totals in QueueMonitor — NOT required.**
+   QueueMonitor is a counts-only monitoring screen. It does not display gross/net/tax/SI figures. Users navigate to Reports for financial data. `portalGetQueueStatus` does not need to return any financial totals for any status (including Completed).
+
+3. **`total_batches` field — NOT required.**
+   QueueMonitor derives batch count client-side: `Math.max(...records.map(r => r.batch_number || 0))`. Backend does not need to add this field.
+
+**New contract requirement added:**
+`code: 'no_run'` field on error response when no MPS exists for a period. This is required — the UI uses it to distinguish a valid empty state (no toast, render EmptyState component) from a genuine error (toast shown). See Section 5 `portalGetQueueStatus` for full detail.
 
 ---
 

@@ -150,20 +150,35 @@ export function mock_portalListRuns() {
  * Used by QueueMonitor and RunPayroll polling.
  */
 export function mock_portalGetQueueStatus({ payroll_period } = {}) {
+  // ── State routing by period ──────────────────────────────────────────────
+  // 2026-04  → Processing  (active run, mix of done/processing/pending/errors)
+  // 2026-03  → Completed   (finished run, all done, 3 batches)
+  // 2026-05  → Draft       (setup exists, run not triggered)
+  // anything else → no_run (no MPS found)
+
+  if (payroll_period === '2026-05') {
+    return { status: 'success', mps_status: 'Draft', mps_working_days: 22, progress: { total: 0, done: 0, error: 0, pending: 0, processing: 0 }, regular_run: { summary: { total: 0, done: 0, error: 0, pending: 0 }, records: [] }, termination_run: { summary: { total: 0, done: 0, error: 0, pending: 0 }, records: [] } };
+  }
+
+  if (payroll_period !== '2026-04' && payroll_period !== '2026-03') {
+    return { status: 'error', code: 'no_run', message: `No payroll run found for period ${payroll_period}` };
+  }
+
   const isProcessing = payroll_period === '2026-04';
+
   return {
     status:           'success',
     mps_status:       isProcessing ? 'Processing' : 'Completed',
     mps_working_days: isProcessing ? 22 : 21,
     progress: {
-      total:      isProcessing ? 10 : 43,
-      done:       isProcessing ? 3  : 43,
-      error:      isProcessing ? 2  : 0,
+      total:      isProcessing ? 10 : 12,
+      done:       isProcessing ? 3  : 11,
+      error:      isProcessing ? 2  : 1,
       pending:    isProcessing ? 3  : 0,
       processing: isProcessing ? 2  : 0,
     },
     regular_run: {
-      summary: { total: isProcessing ? 10 : 43, done: isProcessing ? 3 : 43, error: isProcessing ? 2 : 0, pending: isProcessing ? 5 : 0 },
+      summary: { total: isProcessing ? 10 : 12, done: isProcessing ? 3 : 11, error: isProcessing ? 2 : 1, pending: isProcessing ? 5 : 0 },
       records: isProcessing ? [
         { employee_id: 'EMP001', status: 'Done',       batch_number: 1, processed_at: '09:15', error: '' },
         { employee_id: 'EMP002', status: 'Done',       batch_number: 1, processed_at: '09:15', error: '' },
@@ -176,14 +191,26 @@ export function mock_portalGetQueueStatus({ payroll_period } = {}) {
         { employee_id: 'EMP009', status: 'Pending',    batch_number: 3, processed_at: '',      error: '' },
         { employee_id: 'EMP010', status: 'Pending',    batch_number: 3, processed_at: '',      error: '' },
       ] : [
-        { employee_id: 'EMP001', status: 'Done', batch_number: 1, processed_at: '08:40', error: '' },
-        { employee_id: 'EMP002', status: 'Done', batch_number: 1, processed_at: '08:40', error: '' },
-        { employee_id: 'EMP003', status: 'Done', batch_number: 1, processed_at: '08:41', error: '' },
+        // Completed — 3 batches, 12 employees, 1 error
+        { employee_id: 'EMP001', status: 'Done',  batch_number: 1, processed_at: '08:40', error: '' },
+        { employee_id: 'EMP002', status: 'Done',  batch_number: 1, processed_at: '08:40', error: '' },
+        { employee_id: 'EMP003', status: 'Done',  batch_number: 1, processed_at: '08:41', error: '' },
+        { employee_id: 'EMP004', status: 'Done',  batch_number: 1, processed_at: '08:41', error: '' },
+        { employee_id: 'EMP005', status: 'Done',  batch_number: 2, processed_at: '08:50', error: '' },
+        { employee_id: 'EMP006', status: 'Done',  batch_number: 2, processed_at: '08:50', error: '' },
+        { employee_id: 'EMP007', status: 'Done',  batch_number: 2, processed_at: '08:51', error: '' },
+        { employee_id: 'EMP008', status: 'Done',  batch_number: 2, processed_at: '08:51', error: '' },
+        { employee_id: 'EMP009', status: 'Done',  batch_number: 3, processed_at: '09:00', error: '' },
+        { employee_id: 'EMP010', status: 'Done',  batch_number: 3, processed_at: '09:00', error: '' },
+        { employee_id: 'EMP011', status: 'Done',  batch_number: 3, processed_at: '09:01', error: '' },
+        { employee_id: 'EMP012', status: 'Error', batch_number: 3, processed_at: '09:01', error: 'SI bracket calculation failed' },
       ],
     },
     termination_run: {
-      summary: { total: 0, done: 0, error: 0, pending: 0 },
-      records: [],
+      summary: { total: isProcessing ? 0 : 1, done: isProcessing ? 0 : 1, error: 0, pending: 0 },
+      records: isProcessing ? [] : [
+        { employee_id: 'EMP043', status: 'Done', batch_number: 1, processed_at: '08:45', error: '' },
+      ],
     },
   };
 }
