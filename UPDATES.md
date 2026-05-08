@@ -290,3 +290,74 @@ Session-scoped mutable state: `_createdPeriods`, `_triggerAttempts`, `_portalUse
 
 **Behaviour change:** Dark mode toggle no longer in Settings. Now accessible from sidebar footer (desktop) and mobile header (mobile) — always visible to all users on all devices.
 **Build verified:** ✓ clean, no errors.
+
+---
+
+## [2026-05-08 | 08] feat: Settings screen — full rebuild, all 5 sections, Bug #1 fix
+
+**Why:** The previous Settings screen exposed wrong per-employee fields (apply_insurance, apply_tax, entity_type) at the org level, was missing 3 complete engine-critical sections (Attendance, Social Insurance, Payroll Run), and had a gateway routing bug for user management (Bug #1). Complete rebuild from the confirmed spec.
+
+### Mock updated
+**File:** `webtab/src/hooks/mockData.js` — `mock_portalGetSettings`
+- Rewritten to return correct nested `payroll_settings` structure (payroll_run + attendance + social_insurance)
+- `attendance` includes all new keys: `multiplier` on absence/unpaid_leave/late_deduction, `grace_minutes` on late_deduction
+- `portal_config` now includes `default_holiday_source` field
+- `ceiling_updated: '2024-01-01'` — intentionally triggers SI warning badge in UI
+
+### Settings screen rebuilt
+**File:** `webtab/src/features/Settings/index.jsx` — full rewrite
+
+**Architecture:** 5 self-contained section components + shared base components.
+Each section manages its own state, initialized from `auth.payrollSettings` / `auth.portalConfig`.
+
+**Section 1 — Payroll Run** (`active_settings.payroll_run`)
+- Scope dropdown: All / By department / By employee
+- Conditional: department text input (when by_department)
+- Conditional: employee IDs textarea + "clears after successful run" note (when by_employee)
+- Read-only callout: termination queue-only note
+- Saves via `portalSaveSettings({ section: 'payroll_run', ... })`
+
+**Section 2 — Attendance** (`active_settings.attendance`)
+- Default working days: number input (1–30)
+- Absence: toggle + multiplier (conditional) + formula hint
+- Unpaid leave: toggle + multiplier (conditional) + formula hint
+- Late deduction: toggle + grace_minutes + multiplier (both conditional) + formula hint + amber pending warning
+- Overtime: toggle + multiplier dropdown 1.5×/2.0× (conditional)
+- Public holiday: toggle + if_worked dropdown (conditional) + overtime rate note
+- Saves via `portalSaveSettings({ section: 'attendance', ... })`
+- Note: grace_minutes and multipliers saved to variable but engine not yet updated (PENDING_CONFIG.md PC-01 through PC-04)
+
+**Section 3 — Social Insurance** (`active_settings.social_insurance`)
+- Monthly SI ceiling: number input — only editable field
+- Ceiling last updated: read-only date, auto-updated to today on save
+- Amber warning badge in card header when ceiling_updated year < current year
+- Amber warning message when stale: shows last updated year
+- Employee rate (11%), Employer rate (18.75%), Martyrs' Fund (0.05%): all read-only with locked badge
+- Saves via `portalSaveSettings({ section: 'social_insurance', monthly_ceiling: N })`
+- On save success: optimistically stamps ceiling_updated = today in AuthContext
+
+**Section 4 — Portal Configuration** (`PAYROLL_PORTAL_CONFIG.config`)
+- Holiday source dropdown: Zoho People / Manual
+- Allow working days override toggle
+- Saves via `portalSaveSettings({ section: 'portal_config', ... })`
+
+**Section 5 — Portal Users** (`PAYROLL_PORTAL_CONFIG.users`)
+- User list: employee ID (monospace) + role badge (indigo=admin, green=manager) + Remove button
+- Self-removal guard: "(you)" label + Remove button hidden for current user
+- Add user form: employee ID input (auto-uppercase) + role dropdown + Add button
+- **Bug #1 fix:** Add calls `portalAddPortalUser`, Remove calls `portalRemovePortalUser`
+  (previously both routed through `portalSaveSettings` — incorrect)
+- State updated from `result.portal_users` returned by gateway after each operation
+- No save button — each action fires immediately
+
+**Access guard:** Non-admin users see a locked state instead of settings (admin role required).
+  This is a UI guard only — Settings is already excluded from the manager feature list via permissions.
+
+**Removed from new screen:**
+- Appearance section (dark mode toggle moved to sidebar footer + mobile header)
+- apply_insurance toggle (per-employee field)
+- apply_tax toggle (per-employee field)
+- entity_type dropdown (per-employee field)
+
+**Behaviour change:** Visible — complete Settings redesign.
+**Build verified:** ✓ clean build, no errors.

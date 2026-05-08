@@ -37,21 +37,35 @@ export function mock_portalGetSettings() {
   return {
     status: 'success',
     payroll_settings: {
-      ov_tax_table:               '{"brackets":[{"min":0,"max":40000,"rate":0},{"min":40001,"max":55000,"rate":0.10},{"min":55001,"max":70000,"rate":0.15},{"min":70001,"max":200000,"rate":0.20},{"min":200001,"max":400000,"rate":0.225},{"min":400001,"max":99999999,"rate":0.25}]}',
-      ov_si_rates:                '{"employee_rate":0.11,"employer_rate":0.18,"martyrs_fund":0.0005,"min_insurance_salary":1800,"max_insurance_salary":11600}',
-      ov_employer_si_variable:    '{"rate":0.02}',
-      ov_default_working_days:    22,
-      ov_public_holidays:         'Coptic Christmas\nRevolution Day\nSinai Liberation Day',
-      allow_working_days_override: true,
-      scope:                      'all',
+      payroll_run: {
+        scope:              'all',
+        department:         null,
+        selected_employees: [],
+      },
+      attendance: {
+        working_days_default: 22,
+        absence:        { enabled: true,  multiplier: 1.0 },
+        unpaid_leave:   { enabled: true,  multiplier: 1.0 },
+        late_deduction: { enabled: true,  grace_minutes: 0, multiplier: 1.0 },
+        overtime:       { enabled: true,  multiplier: 1.5 },
+        public_holiday: { enabled: true,  if_worked: 'overtime_rate' },
+      },
+      social_insurance: {
+        monthly_ceiling:   9400,
+        employee_rate:     0.11,
+        employer_rate:     0.1875,
+        martyrs_fund_rate: 0.0005,
+        ceiling_updated:   '2024-01-01',
+      },
     },
     portal_config: {
-      portal_users:               _portalUsers,
-      allow_working_days_override: true,
+      portal_users:                _portalUsers,
       portal_roles: {
         admin:   ['feature_settings', 'feature_run_payroll', 'feature_queue_monitor', 'feature_reports'],
         manager: ['feature_run_payroll', 'feature_queue_monitor', 'feature_reports'],
       },
+      default_holiday_source:      'zoho',
+      allow_working_days_override: true,
     },
   };
 }
