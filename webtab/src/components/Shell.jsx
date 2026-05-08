@@ -4,7 +4,7 @@ import { useSDK }        from '../hooks/useSDK';
 import { useGateway }    from '../hooks/useGateway';
 import { resolvePermissions } from '../utils/permissions';
 import { LoadingScreen, AccessDenied, ErrorScreen } from './LoadingScreen';
-import { Sidebar, BottomNav } from './Nav';
+import { Sidebar, BottomNav, ThemeToggle } from './Nav';
 import { FEATURE_REGISTRY }   from '../config/featureRegistry';
 
 export default function Shell() {
@@ -88,15 +88,18 @@ export default function Shell() {
               </div>
             </div>
           </div>
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'rgba(99,102,241,0.18)',
-            border: '1px solid rgba(99,102,241,0.30)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ color: '#A5B4FC', fontSize: 10, fontWeight: 600 }}>
-              {auth.employeeId?.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || 'U'}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ThemeToggle />
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'rgba(99,102,241,0.18)',
+              border: '1px solid rgba(99,102,241,0.30)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ color: '#A5B4FC', fontSize: 10, fontWeight: 600 }}>
+                {auth.employeeId?.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || 'U'}
+              </span>
+            </div>
           </div>
         </div>
 

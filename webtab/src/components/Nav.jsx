@@ -20,7 +20,8 @@ function OrcaLogo({ size = 32 }) {
 }
 
 // ─── ThemeToggle ──────────────────────────────────────────────────────────────
-function ThemeToggle() {
+// Exported — used in both Sidebar (desktop) and Shell mobile header (mobile)
+export function ThemeToggle() {
   const { dark, toggle } = useTheme();
   return (
     <button

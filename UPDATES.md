@@ -264,3 +264,29 @@ Session-scoped mutable state: `_createdPeriods`, `_triggerAttempts`, `_portalUse
 - Section 9 Backend Implications: BI-01 entry logged (3 confirmed non-requirements + new `code` requirement)
 
 **Build verified:** ✓ clean, 45 modules, no errors.
+
+---
+
+## [2026-05-08 | 07] feat: dark mode toggle — promoted to persistent shell for all users
+
+**Why:** Dark mode is a personal preference, not a system setting. Removing it from Settings ensures it is not mixed with org-level configuration. Every user who opens the webtab should be able to toggle it immediately, on any device, without navigating anywhere.
+
+**Decision:** Toggle lives exclusively in the persistent shell UI — sidebar footer on desktop (already present since Layer 2), mobile header on mobile (added now). Settings screen Appearance section removed entirely.
+
+**File:** `webtab/src/components/Nav.jsx`
+- `ThemeToggle` function changed from private to exported (`export function ThemeToggle`)
+- No visual or behavioural change on desktop — sidebar footer unchanged
+
+**File:** `webtab/src/components/Shell.jsx`
+- Added `ThemeToggle` to import from `./Nav`
+- Mobile header: `ThemeToggle` added between brand block and user avatar
+- Dark/light icon (moon/sun SVG) now always visible on mobile at top of screen
+
+**File:** `webtab/src/features/Settings/index.jsx`
+- Removed `import { useTheme }` 
+- Removed `const { theme, toggleTheme } = useTheme()` destructuring
+- Removed entire Appearance section JSX block (~20 lines)
+- Settings screen now opens directly to Payroll Settings section
+
+**Behaviour change:** Dark mode toggle no longer in Settings. Now accessible from sidebar footer (desktop) and mobile header (mobile) — always visible to all users on all devices.
+**Build verified:** ✓ clean, no errors.
