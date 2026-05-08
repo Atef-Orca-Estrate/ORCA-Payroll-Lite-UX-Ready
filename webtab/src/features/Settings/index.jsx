@@ -64,7 +64,7 @@ function SectionCard({ title, children, onSave, saving, badge }) {
                 border: '2px solid rgba(255,255,255,0.3)',
                 borderTopColor: '#fff',
                 borderRadius: '50%',
-                animation: 'settings-spin 0.7s linear infinite',
+                animation: 'orca-spin 0.7s linear infinite',
               }} />
             )}
             {saving ? 'Saving…' : 'Save'}
@@ -798,7 +798,7 @@ function PortalUsersSection() {
               border: '2px solid rgba(255,255,255,0.3)',
               borderTopColor: '#fff',
               borderRadius: '50%',
-              animation: 'settings-spin 0.7s linear infinite',
+              animation: 'orca-spin 0.7s linear infinite',
             }} />
           )}
           {adding ? 'Adding…' : 'Add user'}
@@ -831,7 +831,6 @@ export default function Settings() {
 
   return (
     <>
-      <style>{`@keyframes settings-spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
         <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
           Settings

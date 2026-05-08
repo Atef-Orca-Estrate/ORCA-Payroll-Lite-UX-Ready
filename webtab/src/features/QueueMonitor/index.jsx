@@ -25,7 +25,7 @@ function Spinner({ size = 20 }) {
       border: `2px solid rgba(99,102,241,0.2)`,
       borderTopColor: ACCENT,
       borderRadius: '50%',
-      animation: 'qm-spin 0.7s linear infinite',
+      animation: 'orca-spin 0.7s linear infinite',
       flexShrink: 0,
     }} />
   );
@@ -56,7 +56,7 @@ function PeriodHeader({ period, onChange, mpsStatus, countdown, lastUpdated, onR
                 <span style={{
                   width: 6, height: 6, borderRadius: '50%', background: ACCENT,
                   boxShadow: `0 0 0 2px rgba(99,102,241,0.3)`,
-                  animation: 'qm-pulse 1.8s ease-in-out infinite',
+                  animation: 'orca-pulse 1.8s ease-in-out infinite',
                   flexShrink: 0,
                 }} />
                 Live
@@ -119,7 +119,7 @@ function PeriodHeader({ period, onChange, mpsStatus, countdown, lastUpdated, onR
             title="Refresh now"
           >
             <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-              style={{ animation: loading ? 'qm-spin 0.7s linear infinite' : 'none' }}>
+              style={{ animation: loading ? 'orca-spin 0.7s linear infinite' : 'none' }}>
               <path strokeLinecap="round" strokeLinejoin="round"
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
             </svg>
@@ -657,11 +657,6 @@ export default function QueueMonitor({ onNavigate }) {
 
   return (
     <>
-      <style>{`
-        @keyframes qm-spin  { to { transform: rotate(360deg); } }
-        @keyframes qm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-      `}</style>
-
       <div style={{
         flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>

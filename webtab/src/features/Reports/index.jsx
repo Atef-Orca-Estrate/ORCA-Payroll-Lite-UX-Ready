@@ -121,7 +121,7 @@ export default function Reports({ navParams = {} }) {
               border: '2px solid rgba(255,255,255,0.25)',
               borderTopColor: '#fff',
               borderRadius: '50%',
-              animation: 'spin 0.7s linear infinite',
+              animation: 'orca-spin 0.7s linear infinite',
             }} />
           )}
           {loading ? 'Loading…' : 'Generate'}
@@ -163,18 +163,17 @@ export default function Reports({ navParams = {} }) {
       )}
 
       {!report && !loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: 12 }}>
-          <svg width="44" height="44" fill="none" viewBox="0 0 24 24" stroke="var(--border-strong)" strokeWidth={1.5}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', gap: 12 }}>
+          <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="var(--border-strong)" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round"
               d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
           </svg>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', textAlign: 'center' }}>
             {navParams?.period ? `Period ${navParams.period} loaded — click Generate` : 'Select a period and click Generate'}
           </p>
         </div>
       )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

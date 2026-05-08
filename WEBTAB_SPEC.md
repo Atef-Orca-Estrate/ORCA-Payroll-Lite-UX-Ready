@@ -1000,15 +1000,15 @@ Status values: `[ ] Not built` · `[~] In progress` · `[x] Built` · `[!] Needs
 | # | Item | Priority | Notes |
 |---|------|----------|-------|
 | F1 | Feature registry refactor (`featureRegistry.jsx`) | ~~High~~ **Done** | Completed 2026-05-07 |
-| F2 | Fix Bug #1 — Settings addUser/removeUser gateway routing | High | — |
-| F3 | RunPayroll mobile layout — `grid-cols-[260px_1fr]` needs responsive breakpoint | High | — |
-| F4 | Typography — add custom font (Plus Jakarta Sans) | Medium | Layer 2 visual foundation work |
-| F5 | Color system — CSS custom properties for design tokens | Medium | Layer 2 visual foundation work |
-| F6 | Sidebar branding — logo mark + visual weight | Medium | Layer 3 shell work |
-| F7 | Dark mode toggle — promote from Settings to sidebar footer | Medium | Layer 3 shell work |
-| F8 | Stepper — increase touch targets, readable type | Medium | Layer 4 RunPayroll work |
-| F9 | Records panel filter tab active state — change to brand blue | Low | — |
-| F10 | LoadingScreen — brand identity on initial load | Low | Layer 5 polish |
+| F2 | Fix Bug #1 — Settings addUser/removeUser gateway routing | ~~High~~ **Done** | Completed 2026-05-08 |
+| F3 | RunPayroll mobile layout — responsive grid + mobile drawer | ~~High~~ **Done** | Completed 2026-05-08 |
+| F4 | Typography — Geist variable font self-hosted | ~~Medium~~ **Done** | Completed 2026-05-07 |
+| F5 | Color system — CSS custom properties, 28 tokens | ~~Medium~~ **Done** | Completed 2026-05-07 |
+| F6 | Sidebar branding — Orca logo + identity block | ~~Medium~~ **Done** | Completed 2026-05-07 |
+| F7 | Dark mode toggle — sidebar footer + mobile header | ~~Medium~~ **Done** | Completed 2026-05-08 |
+| F8 | Stepper — 28px circles, 11.5px labels, checkmarks | ~~Medium~~ **Done** | Completed 2026-05-08 |
+| F9 | Records panel filter tab active state — indigo | ~~Low~~ **Done** | Completed 2026-05-08 |
+| F10 | LoadingScreen — full brand identity | ~~Low~~ **Done** | Completed 2026-05-07 |
 
 ### Backend
 | # | Item | Priority | Notes |
@@ -1017,3 +1017,104 @@ Status values: `[ ] Not built` · `[~] In progress` · `[x] Built` · `[!] Needs
 | B2 | `portalGetSettings` structure translation | High | Section 6 details |
 | B3 | `portalRemovePortalUser` — last-admin guard | Medium | Prevent locking out all admins |
 | B4 | `portalCreateMPS` — zoho holiday API integration | Medium | Only needed if `default_holiday_source = 'zoho'` |
+
+---
+
+### [2026-05-07 | 02] feat: Layer 2 — Visual foundation, brand identity, Geist font
+
+**Files changed:** `index.html`, `index.css`, `tailwind.config.js`, `public/fonts/geist-variable.woff2`, `public/orca-logo.svg`, `Nav.jsx`, `LoadingScreen.jsx`, `Shell.jsx`
+
+**Decisions:**
+- Font: Geist variable, self-hosted (28KB WOFF2), `font-display: swap`, preloaded — SF Pro DNA, zero blocking
+- Palette: Night Graphite `#0F172A` sidebar (fixed dark, does not change with dark mode toggle) + Precision Indigo `#6366F1` accent — chosen over Teal for precision/authority signal
+- Active nav: indigo left border `2.5px` + translucent fill `rgba(99,102,241,0.10)` — both confirmed
+- Dark mode toggle: promoted to sidebar footer (later also mobile header) — never inside Settings
+- CSS token system: 28 custom properties in `:root` + `.dark` overrides — rebrand = one file change
+- Logo: real Orca Estrate SVG, dark circular border blends with `#0F172A` sidebar — no filter needed
+- All branded screens (LoadingScreen, AccessDenied, ErrorScreen) use dark `#0F172A` — consistent first impression
+
+**Backend implication:** None.
+
+---
+
+### [2026-05-07 | 03] feat: Layer 3 — RunPayroll redesign
+
+**Files changed:** `Shell.jsx` (handleNavigate + navParams), `RunPayroll/index.jsx`, `Reports/index.jsx`
+
+**Decisions:**
+- Mobile layout: full-width stacked on mobile, `260px + 1fr` grid on desktop via media query in component `<style>` tag with `!important`
+- Records on mobile: floating FAB → bottom drawer (slide-up, `cubic-bezier(0.32, 0.72, 0, 1)`, max-height 85dvh, backdrop)
+- Run payroll button: stays green `#16A34A` — deliberate "go" signal distinct from graphite primary buttons
+- Stepper: 28px circles, 11.5px labels, SVG checkmark on done, color-transitioning connectors
+- CTA anchoring: `position: sticky; bottom: 0` on all step CTAs — never scrolls off wizard card
+- Filter tab active: indigo border + indigo text (was harsh gray-900)
+- Error rows: dedicated red sub-line, not truncated inline text
+- `onViewReport`: navigates to Reports with `{ period }` pre-filled via Shell `handleNavigate`
+- Shell `handleNavigate(featureKey, params)`: added to thread navParams to any feature — pattern available for all future cross-feature navigation
+
+**Backend implication:** None. Cross-feature navigation is purely frontend.
+
+---
+
+### [2026-05-08 | 04] feat: Layer 3 — QueueMonitor redesign
+
+**Files changed:** `QueueMonitor/index.jsx`, `mockData.js` (mock_portalGetQueueStatus)
+
+**Decisions:**
+- Four states: none (code:no_run error) / Draft / Processing / Completed — each distinct, all with period picker visible
+- `code: 'no_run'` field required on error response — distinguishes valid empty state (no toast) from genuine error (toast). Added to WEBTAB_SPEC.md Section 5.
+- `exit_date` on termination records: dropped from UI — not in backend contract
+- Financial totals in QueueMonitor: not shown — users navigate to Reports (counts only)
+- `total_batches` field: not required — derived client-side as `Math.max(...records.map(r => r.batch_number))`
+- Batch groups: collapsible, color-coded by status, `defaultOpen` when batch has errors or active records
+- Errors-only toggle: cross-batch flat filter — one tap to see all failures
+- Polling: Processing only, pauses on `document.visibilitychange`, resumes + immediate refresh on focus
+- Last updated timestamp shown alongside countdown
+- "Requires manual review" note on error rows — errors do not auto-retry
+
+**Backend implication:** `portalGetQueueStatus` must return `{ status: 'error', code: 'no_run', message: '...' }` (not a generic error) when no MPS exists for the period.
+
+---
+
+### [2026-05-08 | 05] feat: Layer 4 — Settings screen rebuild
+
+**Files changed:** `Settings/index.jsx`, `mockData.js` (mock_portalGetSettings restructured)
+
+**Decisions:**
+- Three controls removed: `apply_insurance`, `apply_tax`, `entity_type` — these are per-employee fields on `P_Employee`, not org-level configuration. Engine reads them from each employee record, not from `PAYROLL_SETTINGS_JSON`.
+- KPI, Loans, Reconciliation sections: not included — these features do not exist in Lite
+- Termination: no configurable mode — Lite always routes through queue. Read-only callout only.
+- `portalGetSettings` response shape: changed from flat to nested (`payroll_run`, `attendance`, `social_insurance` sub-keys). This is the correct shape matching `PAYROLL_SETTINGS_JSON.active_settings`. Mock updated to match. See PENDING_CONFIG.md PC-05.
+- Attendance multipliers (`absence.multiplier`, `unpaid_leave.multiplier`, `late_deduction.multiplier`) and `late_deduction.grace_minutes`: added to UI and variable structure. Engine does not yet read them — tracked in PENDING_CONFIG.md PC-01 through PC-04.
+- SI ceiling warning: amber badge and message shown when `ceiling_updated` year < current calendar year
+- SI rates (employee 11%, employer 18.75%, martyrs 0.05%): read-only badges — fixed by Egyptian law
+- Bug #1 fixed: `portalAddPortalUser` / `portalRemovePortalUser` called correctly (was routing through `portalSaveSettings`)
+- Dark mode toggle: removed from Settings — lives in sidebar footer (desktop) and mobile header (mobile)
+
+**Backend implication:** `portalGetSettings` must return nested structure. `portalSaveSettings` must handle sections: `payroll_run`, `attendance`, `social_insurance`. See PENDING_CONFIG.md PC-05 and PC-06.
+
+---
+
+### [2026-05-08 | 06] fix + polish: Bug fixes A/B/C + Layer 5 polish
+
+**Files changed:** `Nav.jsx`, `index.css`, `AuthContext.jsx`, `RunPayroll/index.jsx`, `QueueMonitor/index.jsx`, `Reports/index.jsx`, `Settings/index.jsx`
+
+**Bug A — Sidebar never rendered on desktop:**
+Inline `style={{ display: 'none' }}` has specificity 1000, overriding Tailwind `md:flex` (specificity ~10). Fixed: removed inline display property, changed `className` to `hidden md:flex` — both class-based, responsive variant wins at md+.
+
+**Bug B — Dark mode toggle non-functional:**
+`ThemeToggle` destructured `{ dark, toggle }` from `useTheme()` but `ThemeContext` exports `{ theme, toggleTheme }`. Both were `undefined`. Fixed: correct destructuring + `const dark = theme === 'dark'` + `onClick={toggleTheme}`.
+
+**Bug C — RunPayroll scope label stale path:**
+`auth.payrollSettings?.scope` was `undefined` after mock restructure to nested shape. Fixed: `auth?.payrollSettings?.payroll_run?.scope`.
+
+**Toast system:**
+Rebuilt with dark card design + colored left border per type (success/error/warning/info). Uses `orca-toast-slide` animation from `index.css`. Removed `animate-fade-in` (non-existent Tailwind class). No longer uses raw `bg-red-500` etc — token-consistent dark card works in both light and dark mode.
+
+**Spinner/keyframe consolidation:**
+`@keyframes orca-spin` and `@keyframes orca-pulse` defined once in `index.css`. Removed local definitions from RunPayroll (`spin`), QueueMonitor (`qm-spin`, `qm-pulse`), Reports (`spin`), Settings (`settings-spin`). All components reference `orca-spin`.
+
+**Empty state consistency:**
+All empty states aligned to: 40px SVG icon, 12.5px muted text, 12px gap, 48px vertical padding. Reports empty state updated (was 44px icon, 13px text, 64px padding).
+
+**Backend implication:** None.

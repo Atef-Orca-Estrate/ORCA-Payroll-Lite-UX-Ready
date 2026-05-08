@@ -123,7 +123,7 @@ function Spinner({ size = 14, color = ACCENT }) {
       border: `2px solid rgba(255,255,255,0.25)`,
       borderTopColor: color,
       borderRadius: '50%',
-      animation: 'spin 0.7s linear infinite',
+      animation: 'orca-spin 0.7s linear infinite',
       flexShrink: 0,
     }} />
   );
@@ -205,7 +205,7 @@ function StepReview({ run, onRun }) {
     } catch { showToast('Failed to trigger run', 'error'); setRunning(false); }
   };
 
-  const scopeLabel = { all: 'All active employees', by_department: 'By department', by_employee: 'Selected employees' }[auth.payrollSettings?.scope] || 'All active employees';
+  const scopeLabel = { all: 'All active employees', by_department: 'By department', by_employee: 'Selected employees' }[auth?.payrollSettings?.payroll_run?.scope] || 'All active employees';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -839,7 +839,6 @@ export default function RunPayroll({ onNavigate }) {
 
   return (
     <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Page header */}

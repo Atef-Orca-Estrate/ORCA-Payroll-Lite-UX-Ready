@@ -361,3 +361,55 @@ Each section manages its own state, initialized from `auth.payrollSettings` / `a
 
 **Behaviour change:** Visible — complete Settings redesign.
 **Build verified:** ✓ clean build, no errors.
+
+---
+
+## [2026-05-08 | 09] fix + polish: Layer 5 — Bug C, toast system, spinner consolidation, empty states, spec
+
+**Why:** Polish pass after all 4 screens were built. Closed remaining bugs and aligned visual details across the product.
+
+### Bug C — RunPayroll scope label (fixed in this pass)
+**File:** `webtab/src/features/RunPayroll/index.jsx`
+`auth.payrollSettings?.scope` → `auth?.payrollSettings?.payroll_run?.scope`
+Root cause: `portalGetSettings` mock restructured to nested shape in commit 1726b9b; RunPayroll still read the flat key.
+
+### Toast system
+**File:** `webtab/src/context/AuthContext.jsx`
+- Removed: `bg-red-500`, `bg-amber-500`, `bg-green-600`, `animate-fade-in` (non-existent Tailwind class)
+- New design: dark card `#0F172A` + colored left border per type (success=green, error=red, warning=amber, info=indigo)
+- Type icon: small colored circle with symbol (✓ ✕ ! i) co-located
+- Animation: `orca-toast-slide` from index.css (slide from right, 200ms ease)
+- Font: `fontFamily: inherit` → Geist
+- Max-width 320px, shadow `0 8px 24px rgba(0,0,0,0.35)`
+- Works correctly in both light and dark mode (dark card is always dark)
+- Position: bottom 80px on mobile (above BottomNav), bottom 24px on desktop via `md:bottom-6`
+- Added `TOAST_CONFIG` map: border color + icon bg + icon symbol per type
+
+### Spinner and keyframe consolidation
+**File:** `webtab/src/index.css`
+- Added: `@keyframes orca-spin { to { transform: rotate(360deg); } }`
+- Added: `@keyframes orca-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`
+- Single source of truth — all components now reference these names
+
+**Files cleaned:** `RunPayroll/index.jsx`, `QueueMonitor/index.jsx`, `Reports/index.jsx`, `Settings/index.jsx`
+- Removed local `@keyframes spin`, `qm-spin`, `qm-pulse`, `settings-spin` definitions
+- All spinner `animation` values updated to `orca-spin 0.7s linear infinite`
+- QueueMonitor live dot updated to `orca-pulse 1.8s ease-in-out infinite`
+- Removed now-empty `<style>` tags from QueueMonitor and Settings
+
+### Empty state consistency
+All empty states aligned to a single pattern:
+- Icon: 40px SVG, `stroke="var(--border-strong)"`, `strokeWidth={1.5}`
+- Text: `fontSize: 12.5`, `color: 'var(--text-muted)'`
+- Gap: 12px between icon and text
+- Padding: `48px 0` vertical
+
+**File:** `webtab/src/features/Reports/index.jsx` — updated (was 44px icon, 13px text, 64px padding)
+RunPayroll and QueueMonitor empty states were already conformant.
+
+### WEBTAB_SPEC.md
+- Decision log (Section 8): entries added for Layers 2, 3, 4, Settings, and this polish pass
+- Open items (Section 11): F2–F10 all marked Done with completion dates
+- Full product decision history now documented for backend consultant
+
+**Build verified:** ✓ clean, no errors.
