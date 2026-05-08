@@ -22,10 +22,11 @@ function OrcaLogo({ size = 32 }) {
 // ─── ThemeToggle ──────────────────────────────────────────────────────────────
 // Exported — used in both Sidebar (desktop) and Shell mobile header (mobile)
 export function ThemeToggle() {
-  const { dark, toggle } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  const dark = theme === 'dark';
   return (
     <button
-      onClick={toggle}
+      onClick={toggleTheme}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       style={{
         width: 28, height: 28,
@@ -66,11 +67,10 @@ export function Sidebar({ active, onNavigate }) {
       width: 220,
       flexShrink: 0,
       background: '#0F172A',
-      display: 'none',
       flexDirection: 'column',
       borderRight: '1px solid rgba(255,255,255,0.05)',
     }}
-    className="md:flex"
+    className="hidden md:flex"
     >
       {/* Brand header */}
       <div style={{
