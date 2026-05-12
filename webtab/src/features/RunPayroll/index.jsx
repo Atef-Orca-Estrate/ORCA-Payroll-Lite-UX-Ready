@@ -130,43 +130,242 @@ function Spinner({ size = 14, color = ACCENT }) {
 }
 
 // ─── Step 1 — Setup ───────────────────────────────────────────────────────────
+// Two internal sub-screens — Stepper stays at Step 1 throughout:
+//   'period_scope' — period picker + scope selector (always shown first)
+//   'selection'    — dept input or employee IDs (by_department / by_employee only)
+//
+// Scope write: for non-all scopes, portalSaveSettings is called before portalCreateMPS
+// so the Orchestrator reads the correct scope from PAYROLL_SETTINGS_JSON at trigger time.
+// GW-006: future — consolidate scope write into portalCreateMPS to reduce round trips.
+const SCOPE_OPTIONS = [
+  { value: 'all',           label: 'All employees',    sub: 'Duplicate period check applies'  },
+  { value: 'by_department', label: 'By department',    sub: 'No additional validation'        },
+  { value: 'by_employee',   label: 'Select employees', sub: 'No additional validation'        },
+];
+
 function StepSetup({ onCreated }) {
   const gateway = useGateway();
   const { show: showToast } = useToast();
-  const [period,  setPeriod]  = useState(currentMonth());
-  const [loading, setLoading] = useState(false);
+  const [subScreen, setSubScreen] = useState('period_scope');
+  const [period,    setPeriod]    = useState(currentMonth());
+  const [scope,     setScope]     = useState('all');
+  const [dept,      setDept]      = useState('');
+  const [empIds,    setEmpIds]    = useState('');
+  const [loading,   setLoading]   = useState(false);
 
-  const handleCreate = async () => {
+  // Count helper — avoids recalculating in render
+  const empList = empIds.split(',').map(s => s.trim()).filter(Boolean);
+
+  const handleNext = () => {
     if (!period) { showToast('Select a period first', 'warning'); return; }
+    if (scope === 'all') { doCreate(); } else { setSubScreen('selection'); }
+  };
+
+  const doCreate = async () => {
     setLoading(true);
     try {
+      // Non-all scopes: write scope to PAYROLL_SETTINGS_JSON before creating MPS
+      if (scope !== 'all') {
+        const scopeSave = await gateway.invoke('portalSaveSettings', {
+          section:             'payroll_settings',
+          scope,
+          selected_department: scope === 'by_department' ? dept.trim() : '',
+          selected_employees:  scope === 'by_employee' ? empList : [],
+          // Pass through SI/tax unchanged — prevents null-overwrite (AUD-006)
+          apply_insurance: true,
+          entity_type:     'Legal Entity',
+          apply_tax:       true,
+        });
+        if (scopeSave.status !== 'success') {
+          showToast(scopeSave.message || 'Failed to save scope', 'error');
+          return;
+        }
+      }
+
       const result = await gateway.invoke('portalCreateMPS', { payroll_period: period });
-      if (result.status === 'success') { showToast('Payroll setup created', 'success'); onCreated(result); }
-      else showToast(result.message || 'Failed to create setup', 'error');
+      if (result.status === 'success') {
+        showToast('Payroll setup created', 'success');
+        onCreated(result, {
+          scope,
+          selected_department: scope === 'by_department' ? dept.trim() : '',
+          selected_employees:  scope === 'by_employee'   ? empList   : [],
+        });
+      } else {
+        showToast(result.message || 'Failed to create setup', 'error');
+      }
     } catch { showToast('Error creating setup', 'error'); }
     finally  { setLoading(false); }
   };
 
+  // ── Sub-screen: period + scope ─────────────────────────────────────────────
+  if (subScreen === 'period_scope') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ flex: 1, padding: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Period picker */}
+          <div>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Payroll period
+            </label>
+            <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
+              style={{
+                width: '100%', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '8px 12px', fontSize: 13,
+                background: 'var(--surface)', color: 'var(--text-primary)',
+                outline: 'none', fontFamily: 'inherit',
+              }}
+              onFocus={e => e.target.style.borderColor = ACCENT}
+              onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+
+          {/* Scope selector */}
+          <div>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              Run scope
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {SCOPE_OPTIONS.map(opt => {
+                const sel = scope === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => setScope(opt.value)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                      border: `1.5px solid ${sel ? ACCENT : 'var(--border)'}`,
+                      background: sel ? ACCENT_BG : 'var(--surface)',
+                      textAlign: 'left', fontFamily: 'inherit', transition: 'all 120ms',
+                    }}>
+                    {/* Radio dot */}
+                    <div style={{
+                      width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                      border: `2px solid ${sel ? ACCENT : 'var(--border-strong)'}`,
+                      background: sel ? ACCENT : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {sel && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: sel ? 600 : 400, color: sel ? ACCENT_TEXT : 'var(--text-primary)' }}>
+                        {opt.label}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: sel ? ACCENT : 'var(--text-muted)', marginTop: 1 }}>
+                        {opt.sub}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Sticky CTA */}
+        <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, background: 'var(--surface)' }}>
+          <PrimaryBtn onClick={handleNext} disabled={loading} loading={loading}>
+            {loading ? 'Creating…' : scope === 'all' ? 'Create setup' : 'Next →'}
+          </PrimaryBtn>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Sub-screen: selection (dept / employee) ────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, padding: '4px 0 12px' }}>
-        <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
-          Payroll period
-        </label>
-        <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
+      <div style={{ flex: 1, padding: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Back */}
+        <button onClick={() => setSubScreen('period_scope')}
           style={{
-            width: '100%', border: '1px solid var(--border)',
-            borderRadius: 8, padding: '8px 12px', fontSize: 13,
-            background: 'var(--surface)', color: 'var(--text-primary)',
-            outline: 'none', fontFamily: 'inherit',
+            alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit', padding: 0, transition: 'color 120ms',
           }}
-          onFocus={e => e.target.style.borderColor = ACCENT}
-          onBlur={e  => e.target.style.borderColor = 'var(--border)'}
-        />
+          onMouseEnter={e => e.currentTarget.style.color = ACCENT}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+        >
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+          </svg>
+          Back
+        </button>
+
+        {/* Period badge — read-only confirmation */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', background: 'var(--surface-raised)',
+          border: '1px solid var(--border)', borderRadius: 8,
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Period</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{period}</span>
+        </div>
+
+        {/* Department input */}
+        {scope === 'by_department' && (
+          <div>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Department name
+            </label>
+            <input
+              type="text" value={dept} onChange={e => setDept(e.target.value)}
+              placeholder="e.g. Engineering"
+              autoFocus
+              style={{
+                width: '100%', border: '1px solid var(--border)', borderRadius: 8,
+                padding: '8px 12px', fontSize: 13,
+                background: 'var(--surface)', color: 'var(--text-primary)',
+                outline: 'none', fontFamily: 'inherit',
+              }}
+              onFocus={e => e.target.style.borderColor = ACCENT}
+              onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+            />
+            <p style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
+              Must match the department name in Zoho People exactly.
+            </p>
+          </div>
+        )}
+
+        {/* Employee IDs */}
+        {scope === 'by_employee' && (
+          <div>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Employee IDs — comma separated
+            </label>
+            <textarea
+              value={empIds} onChange={e => setEmpIds(e.target.value)}
+              placeholder="EMP001, EMP002, EMP003"
+              rows={4}
+              autoFocus
+              style={{
+                width: '100%', border: '1px solid var(--border)', borderRadius: 8,
+                padding: '8px 12px', fontSize: 12.5,
+                background: 'var(--surface)', color: 'var(--text-primary)',
+                outline: 'none', fontFamily: 'monospace', resize: 'vertical',
+              }}
+              onFocus={e => e.target.style.borderColor = ACCENT}
+              onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+            />
+            <p style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
+              {empList.length} employee{empList.length !== 1 ? 's' : ''} entered.
+              {/* GW-007: upgrade to live picker once portalGetEmployees is available */}
+            </p>
+          </div>
+        )}
       </div>
+
       {/* Sticky CTA */}
       <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, background: 'var(--surface)' }}>
-        <PrimaryBtn onClick={handleCreate} disabled={loading} loading={loading}>
+        <PrimaryBtn
+          onClick={doCreate}
+          disabled={
+            loading ||
+            (scope === 'by_department' && !dept.trim()) ||
+            (scope === 'by_employee'   && empList.length === 0)
+          }
+          loading={loading}
+        >
           {loading ? 'Creating…' : 'Create setup'}
         </PrimaryBtn>
       </div>
@@ -205,7 +404,17 @@ function StepReview({ run, onRun }) {
     } catch { showToast('Failed to trigger run', 'error'); setRunning(false); }
   };
 
-  const scopeLabel = { all: 'All active employees', by_department: 'By department', by_employee: 'Selected employees' }[auth?.payrollSettings?.payroll_run?.scope] || 'All active employees';
+  // Scope label reads from the run object (set at creation time) — not from auth settings.
+  // This fixes AUD-012 and gives accurate per-run scope detail in the review step.
+  const scopeLabel = (() => {
+    if (!run.scope || run.scope === 'all') return 'All active employees';
+    if (run.scope === 'by_department') return run.selected_department ? `Dept: ${run.selected_department}` : 'By department';
+    if (run.scope === 'by_employee') {
+      const n = run.selected_employees?.length || 0;
+      return `${n} selected employee${n !== 1 ? 's' : ''}`;
+    }
+    return 'All active employees';
+  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -818,8 +1027,22 @@ export default function RunPayroll({ onNavigate }) {
   const handleSelectNew = () => { setIsNew(true); setSelectedRun(null); setActiveRecords([]); setShowDrawer(false); };
   const handleSelectRun = (run) => { setIsNew(false); setSelectedRun(run); setCountdown(30); loadRecords(run.period); };
 
-  const handleMpsCreated = (result) => {
-    const newRun = { period: result.period, status: 'Draft', employees: 0, working_days: result.working_days, batches: 0, done: 0, error: 0, pending: 0, holidays: result.holidays };
+  const handleMpsCreated = (result, scopeInfo = {}) => {
+    const newRun = {
+      period:              result.period,
+      status:              'Draft',
+      employees:           0,
+      working_days:        result.working_days,
+      batches:             0,
+      done:                0,
+      error:               0,
+      pending:             0,
+      holidays:            result.holidays,
+      // Scope fields set at creation — read by StepReview (fixes AUD-012)
+      scope:               scopeInfo.scope               || 'all',
+      selected_department: scopeInfo.selected_department || '',
+      selected_employees:  scopeInfo.selected_employees  || [],
+    };
     setRuns(prev => [newRun, ...(prev ?? [])]);
     setIsNew(false); setSelectedRun(newRun); setActiveRecords([]);
   };

@@ -37,7 +37,7 @@
 | AUD-009 | 🟡 MEDIUM | Pending | `hooks/mockData.js` vs real `portalGetSettings` | Mock returns nested schema; real gateway returns flat `payroll_settings` — entire settings schema mismatched | — |
 | AUD-010 | 🟡 MEDIUM | ✅ Done | `features/Settings/index.jsx` — `PayrollRunSection` | UI was sending `department`; gateway expects `selected_department` | Log: LOG-002 |
 | AUD-011 | 🟡 MEDIUM | 🔧 Gateway Pending | `features/Settings/index.jsx` — `PayrollRunSection` + `portalSaveSettings` | UI sends `selected_employees` but gateway never writes it to variable — silently dropped | See Gateway Needed: GW-005 |
-| AUD-012 | 🟡 MEDIUM | Pending | `features/RunPayroll/index.jsx` — `StepReview` | Reads `auth.payrollSettings?.payroll_run?.scope` — real gateway returns flat `payroll_settings.scope` | — |
+| AUD-012 | 🟡 MEDIUM | ✅ Done | `features/RunPayroll/index.jsx` — `StepReview` | Reads `auth.payrollSettings?.payroll_run?.scope` — real gateway returns flat `payroll_settings.scope` | Log: LOG-003 |
 | AUD-013 | 🟢 LOW | Pending | `features/QueueMonitor/index.jsx` — `loadData` | Handles `result.code === 'no_run'` but `portalGetQueueStatus` never returns this code — empty state never renders | — |
 
 ---
@@ -54,6 +54,9 @@
 | GW-003 | New section in `portalSaveSettings` | `Gateway Functions/portalSaveSettings.js` + `ATTENDANCE_RULES_JSON` | Add `section == "attendance"` block. Must read/write **`ATTENDANCE_RULES_JSON`** (not `PAYROLL_SETTINGS_JSON`). Must extend schema with new fields not currently in Variables.md: `absence.multiplier`, `unpaid_leave.multiplier`, `late_deduction.grace_minutes`, `late_deduction.multiplier`, `working_days_default`. Update `Variables.md` ATTENDANCE_RULES_JSON section once done. See PENDING_CONFIG.md PC-01 to PC-05. |
 | GW-004 | New section in `portalSaveSettings` | `Gateway Functions/portalSaveSettings.js` + `SI_CONFIG_JSON` | Add `section == "social_insurance"` block. Must read **`SI_CONFIG_JSON`**, patch only `monthly_ceiling` (preserve `employee_rate`, `employer_rate`, `martyrs_fund_rate`), write back. Add `ceiling_updated` timestamp field to `SI_CONFIG_JSON`. Update `Variables.md` SI_CONFIG_JSON section once done. |
 | GW-005 | Extend existing section | `Gateway Functions/portalSaveSettings.js` + `PAYROLL_SETTINGS_JSON` | In `section == "payroll_settings"` block: add write of `selected_employees` list to `active_settings.payroll_run`. Currently silently dropped. Aligns with AUD-011. |
+
+| GW-007 | New Gateway Function | `Gateway Functions/portalGetEmployees.js` | Returns active employee list `[{ id, name, department }]`. Required to upgrade the employee ID textarea in StepSetup sub-screen 2 to a live searchable picker. |
+| GW-008 | New Gateway Function | `Gateway Functions/portalGetDepartments.js` | Returns department list `[{ name }]`. Required to upgrade the department text input in StepSetup sub-screen 2 to a dropdown. |
 
 ---
 *Last updated: 2026-05-12*

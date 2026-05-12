@@ -60,3 +60,38 @@ UI was sending `department` param; gateway expects `selected_department`.
 
 ---
 *Last updated: 2026-05-12*
+
+---
+
+### LOG-003 — 2026-05-12 — Feature: Scope selection in Run Payroll wizard + AUD-012
+**File:** `webtab/src/features/RunPayroll/index.jsx`
+
+**Feature added:**
+Step 1 (Setup) of the wizard now has two internal sub-screens. Stepper unchanged (4 steps).
+
+Sub-screen `period_scope`:
+- Existing period picker retained unchanged.
+- New scope selector: 3 radio-style option buttons — All employees / By department / By employee.
+- "All employees": CTA = "Create setup" → calls `portalCreateMPS` directly (existing flow).
+- "By department" / "By employee": CTA = "Next →" → transitions to sub-screen `selection`.
+
+Sub-screen `selection`:
+- Back link returns to sub-screen 1.
+- Read-only period badge for confirmation.
+- By department: text input for department name (must match Zoho People exactly).
+- By employee: textarea for comma-separated employee IDs. Live count shown below.
+- CTA disabled until input is non-empty.
+- On submit: calls `portalSaveSettings(section:'payroll_settings', scope, ...)` to write scope to `PAYROLL_SETTINGS_JSON`, then `portalCreateMPS`. Two-call approach (GW-006 tracked to consolidate).
+
+`onCreated` callback extended to `onCreated(result, scopeInfo)`. `scopeInfo = { scope, selected_department, selected_employees }`.
+
+`handleMpsCreated` updated to accept `scopeInfo` and carry `scope`, `selected_department`, `selected_employees` on the `newRun` object.
+
+**AUD-012 resolved (side effect):**
+`StepReview.scopeLabel` now reads from `run.scope` / `run.selected_department` / `run.selected_employees` instead of `auth.payrollSettings?.payroll_run?.scope`. Gives accurate per-run scope detail (e.g. "Dept: Engineering", "3 selected employees").
+
+**Gateway tracked:**
+- GW-007: `portalGetEmployees` — for future live employee picker upgrade.
+- GW-008: `portalGetDepartments` — for future department dropdown upgrade.
+
+**Status:** ✅ Done
