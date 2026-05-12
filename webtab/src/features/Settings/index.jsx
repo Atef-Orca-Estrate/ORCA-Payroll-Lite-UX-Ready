@@ -196,9 +196,17 @@ function PayrollRunSection() {
         ? empIds.split(',').map(s => s.trim()).filter(Boolean)
         : [];
       const result = await gateway.invoke('portalSaveSettings', {
-        section: 'payroll_run',
+        section: 'payroll_settings',
+        // Pass current SI/tax values through unchanged — this section owns the full
+        // PAYROLL_SETTINGS_JSON write. Reading from auth ensures we never null-overwrite.
+        // AUD-009: in production auth.payrollSettings is flat; mock uses nested schema.
+        apply_insurance: auth.payrollSettings?.apply_insurance ?? true,
+        entity_type:     auth.payrollSettings?.entity_type     ?? 'Legal Entity',
+        apply_tax:       auth.payrollSettings?.apply_tax       ?? true,
+        // Scope fields
         scope,
-        department:         scope === 'by_department' ? dept : null,
+        selected_department: scope === 'by_department' ? dept : '',
+        // AUD-011 (tracked): gateway silently drops selected_employees — pending engine fix
         selected_employees,
       });
       if (result.status === 'success') {
@@ -207,7 +215,7 @@ function PayrollRunSection() {
           ...prev,
           payrollSettings: {
             ...prev.payrollSettings,
-            payroll_run: { scope, department: dept || null, selected_employees },
+            payroll_run: { scope, selected_department: dept || null, selected_employees },
           },
         }));
       } else {
@@ -649,13 +657,14 @@ function PortalUsersSection() {
     if (!empId) { showToast('Enter an employee ID', 'warning'); return; }
     setAdding(true);
     try {
-      // Bug #1 fix — calls portalAddPortalUser, not portalSaveSettings
-      const result = await gateway.invoke('portalAddPortalUser', {
-        employee_id: empId,
-        role:        newRole,
+      const result = await gateway.invoke('portalSaveSettings', {
+        section: 'portal_users',
+        user_id: empId,   // gateway param is user_id (Zoho People EmployeeID)
+        role:    newRole,
       });
       if (result.status === 'success') {
-        setPortalUsers(result.portal_users);
+        // Gateway returns only { status, message } — update local state manually
+        setPortalUsers(prev => ({ ...prev, [empId]: newRole }));
         setNewEmpId('');
         showToast(`${empId} added as ${newRole}`, 'success');
       } else {
@@ -669,10 +678,19 @@ function PortalUsersSection() {
       showToast('You cannot remove yourself', 'warning');
       return;
     }
-    // Bug #1 fix — calls portalRemovePortalUser, not portalSaveSettings
-    const result = await gateway.invoke('portalRemovePortalUser', { employee_id: userId });
+    // Gateway: portalSaveSettings section=portal_users, role='' removes the user
+    const result = await gateway.invoke('portalSaveSettings', {
+      section: 'portal_users',
+      user_id: userId,
+      role:    '',   // empty role = remove user from map
+    });
     if (result.status === 'success') {
-      setPortalUsers(result.portal_users);
+      // Gateway returns only { status, message } — update local state manually
+      setPortalUsers(prev => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
       showToast(`${userId} removed`, 'success');
     } else {
       showToast(result.message || 'Remove failed', 'error');
