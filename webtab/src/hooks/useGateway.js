@@ -18,6 +18,8 @@ import {
   mock_portalTriggerOrchestrator,
   mock_portalAddPortalUser,
   mock_portalRemovePortalUser,
+  mock_portalGetDepartments,
+  mock_portalGetEmployees,
 } from './mockData.js';
 
 // Maps function name → mock handler function
@@ -33,6 +35,8 @@ const MOCK_HANDLERS = {
   portalSaveSettings:        () => ({ status: 'success', message: 'Settings saved successfully.' }),
   portalAddPortalUser:       mock_portalAddPortalUser,
   portalRemovePortalUser:    mock_portalRemovePortalUser,
+  portalGetDepartments:      mock_portalGetDepartments,
+  portalGetEmployees:        mock_portalGetEmployees,
 };
 
 // Simulates realistic network latency in mock mode

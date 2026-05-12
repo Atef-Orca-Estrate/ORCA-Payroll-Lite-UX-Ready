@@ -95,3 +95,36 @@ Sub-screen `selection`:
 - GW-008: `portalGetDepartments` — for future department dropdown upgrade.
 
 **Status:** ✅ Done
+
+---
+
+### LOG-004 — 2026-05-12 — List pickers for department and employee scope selection
+**Files:** `features/RunPayroll/index.jsx`, `hooks/mockData.js`, `hooks/useGateway.js`, `Gateway Functions/portalGetDepartments.js`, `Gateway Functions/portalGetEmployees.js`
+
+**Change:**
+Replaced text inputs in StepSetup `selection` sub-screen with live-fetched list pickers.
+
+**Department picker (by_department scope):**
+- Fetches `portalGetDepartments` on sub-screen entry. Loading spinner shown during fetch.
+- Client-side search filter (no re-fetch on keystroke). Search icon in input.
+- Radio-style single-select rows. Selected row highlighted in accent colour.
+- CTA disabled until one department is selected.
+
+**Employee picker (by_employee scope):**
+- Fetches `portalGetEmployees` on sub-screen entry.
+- Client-side search by name or employee ID.
+- Checkbox multi-select rows. Name + ID + department shown per row.
+- Selected count badge shown below list.
+- CTA disabled until at least one employee is selected.
+
+**useEffect cleanup:** `cancelled` flag prevents state updates after unmount or scope change.
+
+**Gateway Functions created:**
+- `portalGetDepartments`: calls Zoho People department API, returns `[{ name }]`.
+- `portalGetEmployees`: calls P_Employee forms API, filters active, limit 200, returns `[{ id, name, department }]`.
+
+**Mock added:** `mock_portalGetDepartments` (8 sample departments), `mock_portalGetEmployees` (10 sample employees). Registered in `MOCK_HANDLERS`.
+
+**GW-007 and GW-008 closed.**
+
+**Status:** ✅ Done

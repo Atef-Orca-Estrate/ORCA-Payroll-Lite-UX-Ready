@@ -55,8 +55,8 @@
 | GW-004 | New section in `portalSaveSettings` | `Gateway Functions/portalSaveSettings.js` + `SI_CONFIG_JSON` | Add `section == "social_insurance"` block. Must read **`SI_CONFIG_JSON`**, patch only `monthly_ceiling` (preserve `employee_rate`, `employer_rate`, `martyrs_fund_rate`), write back. Add `ceiling_updated` timestamp field to `SI_CONFIG_JSON`. Update `Variables.md` SI_CONFIG_JSON section once done. |
 | GW-005 | Extend existing section | `Gateway Functions/portalSaveSettings.js` + `PAYROLL_SETTINGS_JSON` | In `section == "payroll_settings"` block: add write of `selected_employees` list to `active_settings.payroll_run`. Currently silently dropped. Aligns with AUD-011. |
 
-| GW-007 | New Gateway Function | `Gateway Functions/portalGetEmployees.js` | Returns active employee list `[{ id, name, department }]`. Required to upgrade the employee ID textarea in StepSetup sub-screen 2 to a live searchable picker. |
-| GW-008 | New Gateway Function | `Gateway Functions/portalGetDepartments.js` | Returns department list `[{ name }]`. Required to upgrade the department text input in StepSetup sub-screen 2 to a dropdown. |
+| GW-007 | New Gateway Function ✅ | `Gateway Functions/portalGetEmployees.js` | Created. Returns active employee list `[{ id, name, department }]` from P_Employee (active only, limit 200). |
+| GW-008 | New Gateway Function ✅ | `Gateway Functions/portalGetDepartments.js` | Created. Returns department list `[{ name }]` from Zoho People department API. |
 
 ---
 *Last updated: 2026-05-12*

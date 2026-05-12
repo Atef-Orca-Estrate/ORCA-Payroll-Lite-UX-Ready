@@ -649,3 +649,46 @@ export function mock_portalRemovePortalUser({ employee_id } = {}) {
     portal_users: { ..._portalUsers },
   };
 }
+
+/**
+ * portalGetDepartments
+ * Returns a static list of departments for the selection picker.
+ */
+export function mock_portalGetDepartments() {
+  return {
+    status: 'success',
+    departments: [
+      { name: 'Engineering'      },
+      { name: 'Finance'          },
+      { name: 'Operations'       },
+      { name: 'Human Resources'  },
+      { name: 'Sales'            },
+      { name: 'Marketing'        },
+      { name: 'Legal'            },
+      { name: 'Customer Support' },
+    ],
+  };
+}
+
+/**
+ * portalGetEmployees
+ * Returns a static list of active employees for the selection picker.
+ * Shape matches real gateway: { id, name, department }
+ */
+export function mock_portalGetEmployees() {
+  return {
+    status: 'success',
+    employees: [
+      { id: 'EMP001', name: 'Ahmed Hassan',   department: 'Engineering'     },
+      { id: 'EMP002', name: 'Sara Mohamed',   department: 'Finance'         },
+      { id: 'EMP003', name: 'Omar Khalil',    department: 'Operations'      },
+      { id: 'EMP004', name: 'Nour Ibrahim',   department: 'Engineering'     },
+      { id: 'EMP005', name: 'Karim Youssef',  department: 'Sales'           },
+      { id: 'EMP006', name: 'Layla Mahmoud',  department: 'Human Resources' },
+      { id: 'EMP007', name: 'Tarek Farouk',   department: 'Engineering'     },
+      { id: 'EMP008', name: 'Mona Sayed',     department: 'Finance'         },
+      { id: 'EMP009', name: 'Yasser Nour',    department: 'Operations'      },
+      { id: 'EMP010', name: 'Heba Ashraf',    department: 'Marketing'       },
+    ],
+  };
+}

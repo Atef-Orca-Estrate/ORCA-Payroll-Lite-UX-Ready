@@ -131,8 +131,8 @@ function Spinner({ size = 14, color = ACCENT }) {
 
 // ─── Step 1 — Setup ───────────────────────────────────────────────────────────
 // Two internal sub-screens — Stepper stays at Step 1 throughout:
-//   'period_scope' — period picker + scope selector (always shown first)
-//   'selection'    — dept input or employee IDs (by_department / by_employee only)
+//   'period_scope' — period picker + scope selector
+//   'selection'    — fetched dept list (radio) or employee list (checkbox)
 //
 // Scope write: for non-all scopes, portalSaveSettings is called before portalCreateMPS
 // so the Orchestrator reads the correct scope from PAYROLL_SETTINGS_JSON at trigger time.
@@ -146,32 +146,81 @@ const SCOPE_OPTIONS = [
 function StepSetup({ onCreated }) {
   const gateway = useGateway();
   const { show: showToast } = useToast();
+
+  // Sub-screen + period + scope
   const [subScreen, setSubScreen] = useState('period_scope');
   const [period,    setPeriod]    = useState(currentMonth());
   const [scope,     setScope]     = useState('all');
-  const [dept,      setDept]      = useState('');
-  const [empIds,    setEmpIds]    = useState('');
   const [loading,   setLoading]   = useState(false);
 
-  // Count helper — avoids recalculating in render
-  const empList = empIds.split(',').map(s => s.trim()).filter(Boolean);
+  // List picker state — selection sub-screen
+  const [selectedDept, setSelectedDept] = useState('');
+  const [selectedEmps, setSelectedEmps] = useState(new Set());
+  const [listData,     setListData]     = useState(null);   // null = not yet fetched
+  const [listLoading,  setListLoading]  = useState(false);
+  const [listSearch,   setListSearch]   = useState('');
+
+  // Fetch dept or employee list when entering selection sub-screen
+  useEffect(() => {
+    if (subScreen !== 'selection') return;
+    let cancelled = false;
+    setListData(null);
+    setListLoading(true);
+    setListSearch('');
+    const fn = scope === 'by_department' ? 'portalGetDepartments' : 'portalGetEmployees';
+    gateway.invoke(fn)
+      .then(res => {
+        if (cancelled) return;
+        if (res.status === 'success') {
+          setListData(scope === 'by_department' ? res.departments : res.employees);
+        } else {
+          showToast(res.message || 'Failed to load list', 'error');
+          setListData([]);
+        }
+      })
+      .catch(() => { if (!cancelled) { showToast('Failed to load list', 'error'); setListData([]); } })
+      .finally(() => { if (!cancelled) setListLoading(false); });
+    return () => { cancelled = true; };
+  }, [subScreen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Client-side search filter — no re-fetch on keystroke
+  const filteredList = (listData || []).filter(item => {
+    const q = listSearch.toLowerCase();
+    if (!q) return true;
+    if (scope === 'by_department') return item.name.toLowerCase().includes(q);
+    return item.name.toLowerCase().includes(q) || item.id.toLowerCase().includes(q);
+  });
 
   const handleNext = () => {
     if (!period) { showToast('Select a period first', 'warning'); return; }
-    if (scope === 'all') { doCreate(); } else { setSubScreen('selection'); }
+    if (scope === 'all') {
+      doCreate();
+    } else {
+      setSelectedDept('');
+      setSelectedEmps(new Set());
+      setSubScreen('selection');
+    }
+  };
+
+  const toggleEmp = (id) => {
+    setSelectedEmps(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   const doCreate = async () => {
+    const empArr = Array.from(selectedEmps);
     setLoading(true);
     try {
-      // Non-all scopes: write scope to PAYROLL_SETTINGS_JSON before creating MPS
       if (scope !== 'all') {
         const scopeSave = await gateway.invoke('portalSaveSettings', {
           section:             'payroll_settings',
           scope,
-          selected_department: scope === 'by_department' ? dept.trim() : '',
-          selected_employees:  scope === 'by_employee' ? empList : [],
-          // Pass through SI/tax unchanged — prevents null-overwrite (AUD-006)
+          selected_department: scope === 'by_department' ? selectedDept : '',
+          selected_employees:  scope === 'by_employee'   ? empArr       : [],
+          // Pass-through SI/tax unchanged — prevents null-overwrite (AUD-006)
           apply_insurance: true,
           entity_type:     'Legal Entity',
           apply_tax:       true,
@@ -181,14 +230,13 @@ function StepSetup({ onCreated }) {
           return;
         }
       }
-
       const result = await gateway.invoke('portalCreateMPS', { payroll_period: period });
       if (result.status === 'success') {
         showToast('Payroll setup created', 'success');
         onCreated(result, {
           scope,
-          selected_department: scope === 'by_department' ? dept.trim() : '',
-          selected_employees:  scope === 'by_employee'   ? empList   : [],
+          selected_department: scope === 'by_department' ? selectedDept : '',
+          selected_employees:  scope === 'by_employee'   ? empArr       : [],
         });
       } else {
         showToast(result.message || 'Failed to create setup', 'error');
@@ -237,7 +285,6 @@ function StepSetup({ onCreated }) {
                       background: sel ? ACCENT_BG : 'var(--surface)',
                       textAlign: 'left', fontFamily: 'inherit', transition: 'all 120ms',
                     }}>
-                    {/* Radio dot */}
                     <div style={{
                       width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
                       border: `2px solid ${sel ? ACCENT : 'var(--border-strong)'}`,
@@ -261,7 +308,6 @@ function StepSetup({ onCreated }) {
           </div>
         </div>
 
-        {/* Sticky CTA */}
         <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, background: 'var(--surface)' }}>
           <PrimaryBtn onClick={handleNext} disabled={loading} loading={loading}>
             {loading ? 'Creating…' : scope === 'all' ? 'Create setup' : 'Next →'}
@@ -271,15 +317,19 @@ function StepSetup({ onCreated }) {
     );
   }
 
-  // ── Sub-screen: selection (dept / employee) ────────────────────────────────
+  // ── Sub-screen: selection — dept list (radio) or employee list (checkbox) ──
+  const ctaDisabled = loading
+    || (scope === 'by_department' && !selectedDept)
+    || (scope === 'by_employee'   && selectedEmps.size === 0);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, padding: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0 0', overflow: 'hidden' }}>
 
         {/* Back */}
         <button onClick={() => setSubScreen('period_scope')}
           style={{
-            alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5,
+            flexShrink: 0, alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5,
             fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none',
             cursor: 'pointer', fontFamily: 'inherit', padding: 0, transition: 'color 120ms',
           }}
@@ -292,80 +342,147 @@ function StepSetup({ onCreated }) {
           Back
         </button>
 
-        {/* Period badge — read-only confirmation */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 12px', background: 'var(--surface-raised)',
-          border: '1px solid var(--border)', borderRadius: 8,
-        }}>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Period</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{period}</span>
+        {/* Period + scope badge */}
+        <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '7px 12px', background: 'var(--surface-raised)',
+            border: '1px solid var(--border)', borderRadius: 8,
+          }}>
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>Period</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{period}</span>
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', padding: '7px 12px',
+            background: ACCENT_BG, border: '1px solid var(--accent-border)', borderRadius: 8,
+          }}>
+            <span style={{ fontSize: 11.5, color: ACCENT_TEXT, fontWeight: 500 }}>
+              {scope === 'by_department' ? 'By dept' : 'By employee'}
+            </span>
+          </div>
         </div>
 
-        {/* Department input */}
-        {scope === 'by_department' && (
-          <div>
-            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
-              Department name
-            </label>
-            <input
-              type="text" value={dept} onChange={e => setDept(e.target.value)}
-              placeholder="e.g. Engineering"
-              autoFocus
-              style={{
-                width: '100%', border: '1px solid var(--border)', borderRadius: 8,
-                padding: '8px 12px', fontSize: 13,
-                background: 'var(--surface)', color: 'var(--text-primary)',
-                outline: 'none', fontFamily: 'inherit',
-              }}
-              onFocus={e => e.target.style.borderColor = ACCENT}
-              onBlur={e  => e.target.style.borderColor = 'var(--border)'}
-            />
-            <p style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
-              Must match the department name in Zoho People exactly.
-            </p>
-          </div>
-        )}
+        {/* Search */}
+        <div style={{ flexShrink: 0, position: 'relative' }}>
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="var(--text-muted)" strokeWidth={2}
+            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input
+            type="text"
+            placeholder={scope === 'by_department' ? 'Search departments…' : 'Search by name or ID…'}
+            value={listSearch}
+            onChange={e => setListSearch(e.target.value)}
+            style={{
+              width: '100%', border: '1px solid var(--border)', borderRadius: 8,
+              padding: '7px 10px 7px 30px', fontSize: 12.5,
+              background: 'var(--surface)', color: 'var(--text-primary)',
+              outline: 'none', fontFamily: 'inherit',
+            }}
+            onFocus={e => e.target.style.borderColor = ACCENT}
+            onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+          />
+        </div>
 
-        {/* Employee IDs */}
-        {scope === 'by_employee' && (
-          <div>
-            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
-              Employee IDs — comma separated
-            </label>
-            <textarea
-              value={empIds} onChange={e => setEmpIds(e.target.value)}
-              placeholder="EMP001, EMP002, EMP003"
-              rows={4}
-              autoFocus
-              style={{
-                width: '100%', border: '1px solid var(--border)', borderRadius: 8,
-                padding: '8px 12px', fontSize: 12.5,
-                background: 'var(--surface)', color: 'var(--text-primary)',
-                outline: 'none', fontFamily: 'monospace', resize: 'vertical',
-              }}
-              onFocus={e => e.target.style.borderColor = ACCENT}
-              onBlur={e  => e.target.style.borderColor = 'var(--border)'}
-            />
-            <p style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
-              {empList.length} employee{empList.length !== 1 ? 's' : ''} entered.
-              {/* GW-007: upgrade to live picker once portalGetEmployees is available */}
-            </p>
+        {/* List — fills remaining height, scrolls internally */}
+        <div style={{
+          flex: 1, minHeight: 0, border: '1px solid var(--border)',
+          borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        }}>
+          {listLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+              <Spinner size={20} color={ACCENT} />
+            </div>
+          ) : !listData || filteredList.length === 0 ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                {listSearch ? 'No results match your search' : 'No items found'}
+              </p>
+            </div>
+          ) : scope === 'by_department' ? (
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {filteredList.map(item => {
+                const sel = selectedDept === item.name;
+                return (
+                  <div key={item.name} onClick={() => setSelectedDept(item.name)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderBottom: '1px solid var(--border)',
+                      cursor: 'pointer', transition: 'background 120ms',
+                      background: sel ? ACCENT_BG : 'transparent',
+                    }}
+                    onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--surface-raised)'; }}
+                    onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{
+                      width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                      border: `2px solid ${sel ? ACCENT : 'var(--border-strong)'}`,
+                      background: sel ? ACCENT : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 120ms',
+                    }}>
+                      {sel && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: sel ? 500 : 400, color: sel ? ACCENT_TEXT : 'var(--text-primary)' }}>
+                      {item.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {filteredList.map(emp => {
+                const sel = selectedEmps.has(emp.id);
+                return (
+                  <div key={emp.id} onClick={() => toggleEmp(emp.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderBottom: '1px solid var(--border)',
+                      cursor: 'pointer', transition: 'background 120ms',
+                      background: sel ? ACCENT_BG : 'transparent',
+                    }}
+                    onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--surface-raised)'; }}
+                    onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{
+                      width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                      border: `2px solid ${sel ? ACCENT : 'var(--border-strong)'}`,
+                      background: sel ? ACCENT : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 120ms',
+                    }}>
+                      {sel && (
+                        <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: sel ? 500 : 400, color: sel ? ACCENT_TEXT : 'var(--text-primary)' }}>
+                        {emp.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                        {emp.id}{emp.department ? ` · ${emp.department}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Selection count — employee multi-select only */}
+        {scope === 'by_employee' && selectedEmps.size > 0 && (
+          <div style={{ flexShrink: 0, fontSize: 11.5, color: ACCENT, fontWeight: 500 }}>
+            {selectedEmps.size} employee{selectedEmps.size !== 1 ? 's' : ''} selected
           </div>
         )}
       </div>
 
-      {/* Sticky CTA */}
-      <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, background: 'var(--surface)' }}>
-        <PrimaryBtn
-          onClick={doCreate}
-          disabled={
-            loading ||
-            (scope === 'by_department' && !dept.trim()) ||
-            (scope === 'by_employee'   && empList.length === 0)
-          }
-          loading={loading}
-        >
+      <div style={{ position: 'sticky', bottom: 0, paddingTop: 8, paddingBottom: 4, background: 'var(--surface)' }}>
+        <PrimaryBtn onClick={doCreate} disabled={ctaDisabled} loading={loading}>
           {loading ? 'Creating…' : 'Create setup'}
         </PrimaryBtn>
       </div>
