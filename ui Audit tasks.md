@@ -34,7 +34,7 @@
 | AUD-006 | 🟠 HIGH | ✅ Done | `features/Settings/index.jsx` — `PayrollRunSection` | Was sending `section: 'payroll_run'` + wrong param names | Log: LOG-002 |
 | AUD-007 | 🟠 HIGH | 🔧 Gateway Pending | `features/Settings/index.jsx` — `AttendanceSection` | UI sends `section: 'attendance'` — not handled in `portalSaveSettings`; gateway falls to unknown section guard | See Gateway Needed: GW-003 |
 | AUD-008 | 🟠 HIGH | 🔧 Gateway Pending | `features/Settings/index.jsx` — `SocialInsuranceSection` | UI sends `section: 'social_insurance'` — not handled in `portalSaveSettings` | See Gateway Needed: GW-004 |
-| AUD-009 | 🟡 MEDIUM | Pending | `hooks/mockData.js` vs real `portalGetSettings` | Mock returns nested schema; real gateway returns flat `payroll_settings` — entire settings schema mismatched | — |
+| AUD-009 | 🟡 MEDIUM | 🔧 Variable Pending | `docs/Variables.md` + `portalGetSettings` + `portalSaveSettings` | **Direction decided:** `PAYROLL_SETTINGS_JSON` variable structure will be expanded to match the mock schema. Mock is the design target. See GW-009. | See Gateway Needed: GW-009 |
 | AUD-010 | 🟡 MEDIUM | ✅ Done | `features/Settings/index.jsx` — `PayrollRunSection` | UI was sending `department`; gateway expects `selected_department` | Log: LOG-002 |
 | AUD-011 | 🟡 MEDIUM | 🔧 Gateway Pending | `features/Settings/index.jsx` — `PayrollRunSection` + `portalSaveSettings` | UI sends `selected_employees` but gateway never writes it to variable — silently dropped | See Gateway Needed: GW-005 |
 | AUD-012 | 🟡 MEDIUM | ✅ Done | `features/RunPayroll/index.jsx` — `StepReview` | Reads `auth.payrollSettings?.payroll_run?.scope` — real gateway returns flat `payroll_settings.scope` | Log: LOG-003 |
@@ -58,5 +58,6 @@
 | GW-007 | New Gateway Function ✅ | `Gateway Functions/portalGetEmployees.js` | Created. Returns active employee list `[{ id, name, department }]` from P_Employee (active only, limit 200). |
 | GW-008 | New Gateway Function ✅ | `Gateway Functions/portalGetDepartments.js` | Created. Returns department list `[{ name }]` from Zoho People department API. |
 
+| GW-009 | Variable schema expansion + Gateway update | `docs/Variables.md` + `Gateway Functions/portalGetSettings.js` + `Gateway Functions/portalSaveSettings.js` | Expand `PAYROLL_SETTINGS_JSON` structure to match the mock schema: add nested `payroll_run` (scope, selected_department, selected_employees), `attendance` (working_days_default, absence, unpaid_leave, late_deduction, overtime, public_holiday with multipliers/grace), and `social_insurance` (monthly_ceiling, ceiling_updated, rates) sub-objects under `active_settings`. Update `portalGetSettings` to return the full nested schema. Update `portalSaveSettings` `payroll_settings` section to read/write the expanded structure. Update `Variables.md` to reflect the new schema before implementation. |
 ---
 *Last updated: 2026-05-12*

@@ -128,3 +128,46 @@ Replaced text inputs in StepSetup `selection` sub-screen with live-fetched list 
 **GW-007 and GW-008 closed.**
 
 **Status:** ✅ Done
+
+---
+
+### LOG-005 — 2026-05-12 — AUD-009: Direction decision — variable schema to match mock
+**Status change:** Pending → 🔧 Variable Pending
+
+**Decision:**
+`PAYROLL_SETTINGS_JSON` org variable structure will be **expanded** to match the mock schema. The mock is the design target. The real gateway and variable must catch up — the UI is not being simplified.
+
+**What this means for the backend consultant (GW-009):**
+`PAYROLL_SETTINGS_JSON.active_settings` must be expanded from its current flat structure to a nested schema matching `mock_portalGetSettings`:
+
+```
+active_settings: {
+  payroll_run: {
+    scope, selected_department, selected_employees, lock
+  },
+  attendance: {
+    working_days_default,
+    absence:        { enabled, multiplier },
+    unpaid_leave:   { enabled, multiplier },
+    late_deduction: { enabled, grace_minutes, multiplier },
+    overtime:       { enabled, multiplier },
+    public_holiday: { enabled, if_worked }
+  },
+  social_insurance: {
+    monthly_ceiling, ceiling_updated,
+    employee_rate, employer_rate, martyrs_fund_rate
+  },
+  income_tax: {
+    apply_tax
+  }
+}
+```
+
+Three files must change together atomically:
+1. `docs/Variables.md` — update PAYROLL_SETTINGS_JSON schema section
+2. `portalGetSettings` — return full nested structure from expanded variable
+3. `portalSaveSettings` — all three sections (payroll_settings, attendance, social_insurance) read/write the correct nested paths
+
+**UI is already aligned to this schema.** No UI changes needed once GW-009 is implemented.
+
+**Status:** 🔧 Variable Pending — blocked on backend/variable work (GW-009)
