@@ -116,22 +116,22 @@ Scope is the source of truth for which employees are in a run — stored on the 
 | `mps_selected_department` | Text | portalCreateMPS | Department name. Empty string when scope ≠ by_department |
 | `mps_selected_employees` | Multi-line Text | portalCreateMPS | JSON array string of employee IDs. Empty array `[]` when scope ≠ by_employee |
 | `mps_batches` | Integer | runPayrollOrchestrator | Total batch count — set when orchestrator queues employees |
-| `mps_gross` | Decimal | runPayrollOrchestrator / processPayrollBatch | Total gross salary for the run. `null` until status = Completed |
-| `mps_net` | Decimal | runPayrollOrchestrator / processPayrollBatch | Total net salary. `null` until Completed |
-| `mps_tax` | Decimal | runPayrollOrchestrator / processPayrollBatch | Total tax withheld. `null` until Completed |
-| `mps_si` | Decimal | runPayrollOrchestrator / processPayrollBatch | Total employee SI deduction. `null` until Completed |
+| `mps_gross` | Decimal | processPayrollBatch | Total gross salary for the run. Aggregated from Final `Monthly_Payroll_Record` rows. `null` until status = Completed |
+| `mps_net` | Decimal | processPayrollBatch | Total net salary. `null` until Completed |
+| `mps_tax` | Decimal | processPayrollBatch | Total monthly tax withheld. `null` until Completed |
+| `mps_si` | Decimal | processPayrollBatch | Total employee SI deduction. `null` until Completed |
 
 **Holiday storage note:** `mps_public_holidays` stores holidays as a JSON array string `[{"date":"YYYY-MM-DD","name":"string"}]` in the frontend path. The backend engine must handle both formats (text lines for legacy records, JSON array for new records created via `portalCreateMPS`).
 
 ---
 
-## Payroll_Queue (17 fields)
+## Payroll_Queue (18 fields)
 
 One record per employee per run (regular) or per termination event.
 
 ---
 
-### [BACKEND] (17 fields)
+### [BACKEND] (18 fields)
 
 Written by Orchestrator and `onEmployeeTermination`. Updated by `processPayrollBatch` and `processTerminationRun`.
 
@@ -147,6 +147,7 @@ Written by Orchestrator and `onEmployeeTermination`. Updated by `processPayrollB
 
 | API Name | Zoho Type | Written By | Notes |
 |---|---|---|---|
+| `pq_mps_id` | Text | Orchestrator | MPS record ID linking this queue entry to its specific run. Used by `processPayrollBatch` to fetch MPS by ID — accurate when `allow_multiple_runs = true`. `null` for legacy records |
 | `pq_batch_number` | Integer | Orchestrator | Regular path only. `null` for termination records |
 | `pq_queue_at` | DateTime | Orchestrator | Set on first record of each batch. Workflow A fires at this time |
 | `pq_exit_date` | Date | onEmployeeTermination | Termination path only. `null` for regular records |
@@ -205,24 +206,25 @@ Termination:
 
 ---
 
-## Monthly_Payroll_Record (41+ fields)
+## Monthly_Payroll_Record (43+ fields)
 
 One record per employee per period. Written by `processPayrollBatch` and `processTerminationRun`.
 
 ---
 
-### [BACKEND] Engine Fields (41 fields)
+### [BACKEND] Engine Fields (43 fields)
 
 On rerun: existing record converted to Draft, new Final record written in its place.
 
-#### Group 1 — Identity (5 fields)
+#### Group 1 — Identity (6 fields)
 
 | API Name | Zoho Type | Notes |
 |---|---|---|
 | `pr_employee` | Text | EmployeeID string |
 | `pr_payroll_period` | Text | `"YYYY-MM"` |
-| `pr_payslip_issue_date` | Date | Copied from `mps_payslip_issue_date` |
-| `pr_status` | Select | `Draft` / `Final` |
+| `pr_mps_id` | Text | MPS record ID — links this payroll record to its specific run. Required for `run_id` filtering in `portalGetPayrollRecords` when `allow_multiple_runs = true`. Written on both Final and Error records |
+| `pr_payslip_issue_date` | Date | Copied from `mps_payslip_issue_date`. `null` on Error records |
+| `pr_status` | Select | `Draft` / `Final` / `Error` |
 | `pr_is_final_settlement` | Boolean | `false` = regular. `true` = termination |
 
 #### Group 2 — Salary (3 fields)
@@ -297,14 +299,15 @@ On rerun: existing record converted to Draft, new Final record written in its pl
 |---|---|---|
 | `pr_final_settlement_days_worked` | Integer | Actual days worked in partial month. `null` for regular records |
 
-#### Group 10 — Audit and Rerun (4 fields)
+#### Group 10 — Audit, Rerun, and Error (5 fields)
 
 | API Name | Zoho Type | Notes |
 |---|---|---|
 | `pr_is_rerun` | Boolean | `true` when overwriting a prior Final record |
 | `pr_run_sequence` | Integer | `null` on first write. Incremented on each rerun |
 | `pr_rerun_reason` | Text | Short description set on rerun conversion |
-| `pr_generated_at` | DateTime | `zoho.currenttime` at record write time |
+| `pr_generated_at` | DateTime | `zoho.currenttime` at record write time. Written on all statuses including Error |
+| `pr_error` | Multi-line Text | Error message truncated to 500 chars. Written by `processPayrollBatch` on Error records only. Empty / absent on Final records |
 
 **Rerun logic:**
 ```
@@ -312,6 +315,12 @@ On rerun (existing Final record found for same employee + period + is_final_sett
   1. Existing record → pr_status = Draft, pr_is_rerun = true, pr_run_sequence += 1
   2. New record written with pr_status = Final, pr_is_rerun = true
 ```
+
+**Error record (new):**
+When `processPayrollBatch` catches an exception for an employee, it writes a minimal `Monthly_Payroll_Record` with:
+- `pr_status = "Error"`, `pr_mps_id`, `pr_employee`, `pr_payroll_period`, `pr_generated_at`, `pr_error`
+- All financial fields absent (`null`)
+- Allows the frontend Records Panel to display an error row for the employee
 
 ---
 
@@ -338,14 +347,7 @@ On rerun (existing Final record found for same employee + period + is_final_sett
 | `pr_error` | `error` | Always included. Empty string when no error |
 | `pr_total_deductions` | `pr_total_deductions` | Computed in gateway if not stored: `employee_si + martyrs_fund + absence + unpaid_leave + late` |
 
-**`pr_mps_id` field required (new):**
-To support `run_id` filtering in `portalGetPayrollRecords` (needed when `allow_multiple_runs = true`), each `Monthly_Payroll_Record` needs a field linking it to its MPS record:
-
-| API Name | Zoho Type | Written By | Notes |
-|---|---|---|---|
-| `pr_mps_id` | Text | processPayrollBatch | Zoho record ID of the parent MPS record. Used by `portalGetPayrollRecords` to filter records by run when multiple runs exist for the same period |
-
-> **Backend action required:** `processPayrollBatch` must write `pr_mps_id` when creating each `Monthly_Payroll_Record`.
+> `pr_mps_id` is documented in Group 1 — Identity above. `portalGetPayrollRecords` uses it to filter records by run when `allow_multiple_runs = true`.
 
 ---
 
@@ -357,8 +359,15 @@ To support `run_id` filtering in `portalGetPayrollRecords` (needed when `allow_m
 | P_Employee — salary reference (from P_Salary) | 3 | Frontend reads |
 | Employee_Payroll_Config | 4 | Frontend |
 | Monthly_Payroll_Setup — engine fields | 10 | Backend |
-| Monthly_Payroll_Setup — scope + financial summary | 8 | Frontend |
-| Payroll_Queue | 17 | Backend (frontend reads 6) |
-| Monthly_Payroll_Record — engine fields | 41 | Backend |
-| Monthly_Payroll_Record — `pr_mps_id` (new) | 1 | Backend writes, Frontend reads |
-| **Total** | **92** | |
+| Monthly_Payroll_Setup — scope + financial summary | 8 | Frontend / Backend |
+| Payroll_Queue | 18 | Backend (frontend reads 6) |
+| Monthly_Payroll_Record — engine fields | 43 | Backend |
+| **Total** | **94** | |
+
+**New fields added in engine-alignment session (2026-05-13):**
+
+| Field | Form | Reason |
+|---|---|---|
+| `pq_mps_id` | Payroll_Queue | Links each queue record to its specific MPS run — enables accurate MPS lookup and multi-run support |
+| `pr_mps_id` | Monthly_Payroll_Record | Links each payroll record to its specific run — enables `portalGetPayrollRecords` run_id filtering |
+| `pr_error` | Monthly_Payroll_Record | Stores error message on Error records — enables error row display in the Records Panel |
