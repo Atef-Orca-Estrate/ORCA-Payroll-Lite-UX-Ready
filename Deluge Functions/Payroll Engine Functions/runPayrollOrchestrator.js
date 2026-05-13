@@ -10,7 +10,7 @@
 //   STEP 2  — Set MPS status → Processing
 //   STEP 3  — Derive period boundaries
 //   STEP 4  — Parse public holidays from MPS
-//   STEP 5  — Read run scope from PAYROLL_SETTINGS_JSON
+//   STEP 5  — Read run scope from MPS record (mps_scope, mps_selected_department, mps_selected_employees)
 //   STEP 6  — Build employee list (paginated, 200/call)
 //             for each over leftPad page list — replaces while() (not in Deluge)
 //             Capture emp profile in same pass → emp_map
@@ -87,14 +87,14 @@ monthly_setup = mps_list.get(0);
 mps_id        = monthly_setup.get("ID");
 mps_status    = monthly_setup.get("mps_status");
 
-if(mps_status != "Ready")
+if(mps_status != "Draft" && mps_status != "Ready")
 {
 	payroll_run_cfg.put("lock", false);
 	active_settings.put("payroll_run", payroll_run_cfg);
 	payroll_settings.put("active_settings", active_settings);
 	invokeurl [url:settings_update_url type:POST parameters:{"value":payroll_settings.toString()} connection:"zoho_people_payroll_conn"];
-	info "ABORT. MPS status=" + mps_status + " — must be Ready.";
-	return {"status":"error","message":"Monthly_Payroll_Setup status is " + mps_status + ". Must be Ready to run."};
+	info "ABORT. MPS status=" + mps_status + " — must be Draft.";
+	return {"status":"error","message":"Monthly_Payroll_Setup status is " + mps_status + ". Must be Draft to run."};
 }
 
 working_days = monthly_setup.get("mps_working_days").toInteger();
@@ -133,23 +133,42 @@ public_holiday_dates = List();
 ph_raw = monthly_setup.get("mps_public_holidays");
 if(ph_raw != null && ph_raw != "")
 {
-	for each line in ph_raw.split("\n")
+	if(ph_raw.trim().startsWith("["))
 	{
-		line = line.trim();
-		if(line != "")
+		// JSON array format: [{"date":"YYYY-MM-DD","name":"..."}]
+		ph_list = ph_raw.toJSONList();
+		for each ph_entry in ph_list
 		{
-			date_token = line.split(" ").get(0);
-			public_holiday_dates.add(date_token.toDate());
+			ph_date = ifnull(ph_entry.get("date"), "");
+			if(ph_date != "") { public_holiday_dates.add(ph_date.toDate()); }
+		}
+	}
+	else
+	{
+		// Legacy newline format: "YYYY-MM-DD name\n..."
+		for each line in ph_raw.split("\n")
+		{
+			line = line.trim();
+			if(line != "")
+			{
+				date_token = line.split(" ").get(0);
+				public_holiday_dates.add(date_token.toDate());
+			}
 		}
 	}
 }
 info "END. STEP 4: public_holiday count=" + public_holiday_dates.size();
 
-// ── STEP 5: Read run scope from settings ─────────────────────────────────
+// ── STEP 5: Read run scope from MPS record ────────────────────────────────
 info "INIT. STEP 5: Read run scope";
-scope           = payroll_run_cfg.get("scope");          // "all" | "by_department" | "by_employee"
-selected_dept   = payroll_run_cfg.get("selected_department");
-selected_emps   = payroll_run_cfg.get("selected_employees");  // List of EmployeeIDs
+scope             = ifnull(monthly_setup.get("mps_scope"), "all");
+selected_dept     = ifnull(monthly_setup.get("mps_selected_department"), "");
+selected_emps_raw = ifnull(monthly_setup.get("mps_selected_employees"), "");
+selected_emps     = List();
+if(selected_emps_raw != "" && selected_emps_raw.startsWith("["))
+{
+	selected_emps = selected_emps_raw.toJSONList();
+}
 apply_insurance = active_settings.get("social_insurance").get("apply_insurance");
 entity_type     = active_settings.get("social_insurance").get("entity_type");
 apply_tax       = active_settings.get("income_tax").get("apply_tax");
@@ -240,7 +259,7 @@ info "END. STEP 6: employee count=" + all_employees.size();
 // Guard: no employees found
 if(all_employees.size() == 0)
 {
-	zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {"mps_status":"Ready"});
+	zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {"mps_status":"Draft"});
 	payroll_run_cfg.put("lock", false);
 	active_settings.put("payroll_run", payroll_run_cfg);
 	payroll_settings.put("active_settings", active_settings);
@@ -436,6 +455,7 @@ for each emp_id in all_employees
 	queue_rec = Map();
 	queue_rec.put("pq_employee_id",         emp_id);
 	queue_rec.put("pq_payroll_period",       payroll_period);
+	queue_rec.put("pq_mps_id",              mps_id);
 	queue_rec.put("pq_batch_number",         batch_number);
 	queue_rec.put("pq_is_final_settlement",  false);
 	queue_rec.put("pq_status",               "Pending");
@@ -471,16 +491,19 @@ for each emp_id in all_employees
 		batch_pos     = 0;
 	}
 }
-info "END. STEP 9: Queue written | total=" + total_queued + " | batches=" + batch_number;
+// batch_number rolls forward when last batch is exactly full — compute actual total
+total_batches = (batch_pos > 0) ? batch_number : (batch_number - 1);
+info "END. STEP 9: Queue written | total=" + total_queued + " | batches=" + total_batches;
 
 // ── STEP 10: Update MPS progress counters ────────────────────────────────
 info "INIT. STEP 10: Update MPS progress";
 zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {
 	"mps_progress_total": total_queued,
 	"mps_progress_done":  0,
-	"mps_progress_error": 0
+	"mps_progress_error": 0,
+	"mps_batches":        total_batches
 });
-info "END. STEP 10: mps_progress_total=" + total_queued;
+info "END. STEP 10: mps_progress_total=" + total_queued + " | mps_batches=" + total_batches;
 
 // ── STEP 11: Release global lock ─────────────────────────────────────────
 info "INIT. STEP 11: Release lock";

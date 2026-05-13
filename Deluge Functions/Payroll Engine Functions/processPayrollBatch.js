@@ -24,9 +24,8 @@
 //             e. Write Monthly_Payroll_Record
 //             f. Mark queue Done / Error
 //   STEP 5  — Update MPS progress counters (read-then-write — concurrent safe)
-//   STEP 6  — Completion check — query remaining Pending
-//             If 0 remaining → MPS status = Completed
-//             Fix 14: clear by_employee scope only on clean completion
+//   STEP 6  — Completion check — query remaining Pending for this MPS run
+//             If 0 remaining → aggregate mps_gross/net/tax/si → MPS status = Completed
 // ============================================================
 
 info "INIT. processPayrollBatch | batch: " + batch_number + " | period: " + payroll_period;
@@ -48,7 +47,6 @@ active_settings  = payroll_settings.get("active_settings");
 apply_insurance  = active_settings.get("social_insurance").get("apply_insurance");
 entity_type      = active_settings.get("social_insurance").get("entity_type");
 apply_tax        = active_settings.get("income_tax").get("apply_tax");
-scope            = active_settings.get("payroll_run").get("scope");
 
 // — SI_CONFIG_JSON ─────────────────────────────────────────────────────────────
 si_config = Map();
@@ -61,6 +59,13 @@ if(apply_insurance)
 		connection:"zoho_people_payroll_conn"
 	];
 	si_config = si_response.get("variable").get("value");
+
+	// H-1: Overlay monthly_ceiling from PAYROLL_SETTINGS_JSON if admin has configured it
+	si_ceil_override = ifnull(active_settings.get("social_insurance").get("monthly_ceiling"), "");
+	if(si_ceil_override != "" && si_ceil_override.toDecimal() > 0)
+	{
+		si_config.put("monthly_ceiling", si_ceil_override.toDecimal());
+	}
 }
 
 // — TAX_CONFIG_JSON + BRACKETS ────────────────────────────────────────────────
@@ -104,21 +109,69 @@ att_response = invokeurl
 ];
 att_rules = att_response.get("variable").get("value");
 
+// H-2: Overlay attendance multipliers and grace_minutes from PAYROLL_SETTINGS_JSON
+psi_att = ifnull(active_settings.get("attendance"), Map());
+if(psi_att.size() > 0)
+{
+	psi_abs = ifnull(psi_att.get("absence"), Map());
+	if(ifnull(psi_abs.get("multiplier"), "") != "")
+	{ att_rules.get("absence").put("multiplier", psi_abs.get("multiplier").toDecimal()); }
+
+	psi_ul = ifnull(psi_att.get("unpaid_leave"), Map());
+	if(ifnull(psi_ul.get("multiplier"), "") != "")
+	{ att_rules.get("unpaid_leave").put("multiplier", psi_ul.get("multiplier").toDecimal()); }
+
+	psi_ld = ifnull(psi_att.get("late_deduction"), Map());
+	if(ifnull(psi_ld.get("multiplier"), "") != "")
+	{ att_rules.get("late_deduction").put("multiplier", psi_ld.get("multiplier").toDecimal()); }
+	if(ifnull(psi_ld.get("grace_minutes"), "") != "")
+	{ att_rules.get("late_deduction").put("grace_minutes", psi_ld.get("grace_minutes").toInteger()); }
+
+	psi_ot = ifnull(psi_att.get("overtime"), Map());
+	if(ifnull(psi_ot.get("multiplier"), "") != "")
+	{ att_rules.get("overtime").put("multiplier", psi_ot.get("multiplier").toDecimal()); }
+
+	psi_ph = ifnull(psi_att.get("public_holiday"), Map());
+	if(ifnull(psi_ph.get("if_worked"), "") != "")
+	{ att_rules.get("public_holiday").put("if_worked", psi_ph.get("if_worked")); }
+}
+
 info "END. STEP 1: Config loaded | apply_insurance=" + apply_insurance
    + " | apply_tax=" + apply_tax + " | entity_type=" + entity_type;
 
 // ── STEP 2: Read MPS record ───────────────────────────────────────────────────
+// Prefer pq_mps_id from queue — accurate when allow_multiple_runs=true
 info "INIT. STEP 2: Read MPS";
-mps_list = zoho.people.getRecords("Monthly_Payroll_Setup",
-	{"searchField":"mps_payroll_period","searchOperator":"Is","searchText":payroll_period});
 
-if(mps_list.size() == 0)
+mps_probe   = zoho.people.getRecords("Payroll_Queue",
+	{"searchField": "pq_batch_number",  "searchOperator":"Is","searchText":batch_number,
+	 "searchField2":"pq_payroll_period","searchOperator2":"Is","searchText2":payroll_period,
+	 "limit":1});
+mps_id_hint = (mps_probe.size() > 0) ? ifnull(mps_probe.get(0).get("pq_mps_id"), "") : "";
+
+if(mps_id_hint != "")
 {
-	info "ERROR. No MPS found for period=" + payroll_period + ". Batch cannot continue.";
-	return;
+	monthly_setup = zoho.people.getRecordById("Monthly_Payroll_Setup", mps_id_hint);
+	if(monthly_setup == null)
+	{
+		info "ERROR. MPS record not found by ID=" + mps_id_hint;
+		return;
+	}
+	mps_id = mps_id_hint;
 }
-monthly_setup      = mps_list.get(0);
-mps_id             = monthly_setup.get("ID");
+else
+{
+	mps_list = zoho.people.getRecords("Monthly_Payroll_Setup",
+		{"searchField":"mps_payroll_period","searchOperator":"Is","searchText":payroll_period});
+	if(mps_list.size() == 0)
+	{
+		info "ERROR. No MPS found for period=" + payroll_period + ". Batch cannot continue.";
+		return;
+	}
+	monthly_setup = mps_list.get(0);
+	mps_id        = monthly_setup.get("ID");
+}
+
 working_days       = monthly_setup.get("mps_working_days").toInteger();
 payslip_issue_date = monthly_setup.get("mps_payslip_issue_date");
 
@@ -170,7 +223,7 @@ for each queue_rec in batch_records
 		subscription_wage = emp_snap.get("subscription_wage").toDecimal();
 		hire_month        = emp_snap.get("hire_month").toInteger();
 		hire_year         = emp_snap.get("hire_year").toInteger();
-		emp_basic_salary  = emp_snap.get("emp_basic_salary").toDecimal();
+		emp_basic_salary  = emp_snap.get("basic_salary").toDecimal();
 		total_allowances  = emp_snap.get("total_allowances").toDecimal();
 
 		// Per-employee override resolution
@@ -306,6 +359,7 @@ for each queue_rec in batch_records
 		pr_fields = Map();
 		pr_fields.put("pr_employee",                     employee_id);
 		pr_fields.put("pr_payroll_period",               payroll_period);
+		pr_fields.put("pr_mps_id",                       mps_id);
 		pr_fields.put("pr_payslip_issue_date",           payslip_issue_date);
 		pr_fields.put("pr_basic_salary",                 emp_basic_salary);
 		pr_fields.put("pr_total_allowances",             total_allowances);
@@ -372,6 +426,18 @@ for each queue_rec in batch_records
 			"pq_status": "Error",
 			"pq_error":  e.toString().subString(0, 500)
 		});
+
+		// Write Error Monthly_Payroll_Record — frontend displays error rows in records panel
+		err_rec = Map();
+		err_rec.put("pr_employee",            employee_id);
+		err_rec.put("pr_payroll_period",      payroll_period);
+		err_rec.put("pr_mps_id",              mps_id);
+		err_rec.put("pr_status",              "Error");
+		err_rec.put("pr_is_final_settlement", false);
+		err_rec.put("pr_generated_at",        zoho.currenttime.toString("yyyy-MM-dd HH:mm:ss"));
+		err_rec.put("pr_error",               e.toString().subString(0, 500));
+		zoho.people.create("Monthly_Payroll_Record", err_rec, "zoho_people_payroll_conn");
+
 		error_this_batch += 1;
 		info "ERROR. Employee: " + employee_id + " | " + e.toString();
 	}
@@ -395,54 +461,59 @@ info "END. STEP 5: mps_progress_done=" + (current_done + done_this_batch)
    + " | mps_progress_error=" + (current_errors + error_this_batch);
 
 // ── STEP 6: Completion check ─────────────────────────────────────────────────
-// Query remaining Pending records for this period.
-// If 0 → all batches have finished → mark run Completed.
-// Fix 14: clear by_employee scope only when no errors exist.
+// Query remaining Pending records for this MPS run.
+// If 0 → all batches done → aggregate financial totals and mark Completed.
 info "INIT. STEP 6: Completion check";
-remaining_pending = zoho.people.getRecords("Payroll_Queue",
+
+all_pending = zoho.people.getRecords("Payroll_Queue",
 	{"searchField": "pq_payroll_period","searchOperator":"Is","searchText":payroll_period,
 	 "searchField2":"pq_status",        "searchOperator2":"Is","searchText2":"Pending"});
 
-if(remaining_pending.size() == 0)
+// Filter to only this MPS run's pending records (allow_multiple_runs-safe)
+remaining_count = 0;
+for each pq_item in all_pending
 {
-	info "All batches complete — marking MPS Completed.";
-	zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {"mps_status":"Completed"});
+	pq_mps_val = ifnull(pq_item.get("pq_mps_id"), "");
+	if(pq_mps_val == "" || pq_mps_val == mps_id) { remaining_count += 1; }
+}
 
-	// Fix 14: Only clear by_employee scope if run completed without errors
-	// Errors preserved so HR can re-trigger for failed employees
-	error_recs = zoho.people.getRecords("Payroll_Queue",
-		{"searchField": "pq_payroll_period","searchOperator":"Is","searchText":payroll_period,
-		 "searchField2":"pq_status",        "searchOperator2":"Is","searchText2":"Error"});
+if(remaining_count == 0)
+{
+	info "All batches complete — aggregating totals and marking MPS Completed.";
 
-	if(scope == "by_employee" && error_recs.size() == 0)
+	// Aggregate financial totals from Final payroll records for this run
+	total_mps_gross = 0.0;
+	total_mps_net   = 0.0;
+	total_mps_tax   = 0.0;
+	total_mps_si    = 0.0;
+
+	final_recs = zoho.people.getRecords("Monthly_Payroll_Record",
+		{"searchField": "pr_payroll_period","searchOperator":"Is","searchText":payroll_period,
+		 "searchField2":"pr_status",        "searchOperator2":"Is","searchText2":"Final"});
+
+	for each fr in final_recs
 	{
-		fresh_settings = invokeurl
-		[
-			url :"https://people.zoho.com/people/api/v3/variables/PAYROLL_SETTINGS_JSON/view?group=Orca_Payroll_Variables"
-			type :GET
-			connection:"zoho_people_payroll_conn"
-		];
-		settings_map = fresh_settings.get("variable").get("value");
-		settings_map.get("active_settings").get("payroll_run").put("selected_employees", List());
-		settings_map.get("active_settings").get("payroll_run").put("scope", "all");
+		fr_mps = ifnull(fr.get("pr_mps_id"), "");
+		if(fr_mps != "" && fr_mps != mps_id) { continue; }
+		total_mps_gross += ifnull(fr.get("pr_gross_salary"),          "0").toDecimal();
+		total_mps_net   += ifnull(fr.get("pr_net_salary"),            "0").toDecimal();
+		total_mps_tax   += ifnull(fr.get("pr_monthly_tax"),           "0").toDecimal();
+		total_mps_si    += ifnull(fr.get("pr_employee_si_deduction"), "0").toDecimal();
+	}
 
-		invokeurl
-		[
-			url :"https://people.zoho.com/people/api/v3/variables/PAYROLL_SETTINGS_JSON/update?group=Orca_Payroll_Variables"
-			type :POST
-			parameters:{"value":settings_map.toString()}
-			connection:"zoho_people_payroll_conn"
-		];
-		info "Fix 14: by_employee scope cleared — clean completion.";
-	}
-	else if(error_recs.size() > 0)
-	{
-		info "Fix 14: by_employee scope preserved — " + error_recs.size() + " error(s) found.";
-	}
+	zoho.people.updateRecord("Monthly_Payroll_Setup", mps_id, {
+		"mps_status": "Completed",
+		"mps_gross":  total_mps_gross.round(2),
+		"mps_net":    total_mps_net.round(2),
+		"mps_tax":    total_mps_tax.round(2),
+		"mps_si":     total_mps_si.round(2)
+	});
+	info "MPS Completed | gross=" + total_mps_gross.round(2) + " | net=" + total_mps_net.round(2)
+	   + " | tax=" + total_mps_tax.round(2) + " | si=" + total_mps_si.round(2);
 }
 else
 {
-	info "Remaining Pending: " + remaining_pending.size() + " — other batches still processing.";
+	info "Remaining Pending for this run: " + remaining_count + " — other batches still processing.";
 }
 info "END. STEP 6: Completion check done.";
 

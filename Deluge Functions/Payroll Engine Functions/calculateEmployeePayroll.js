@@ -212,7 +212,8 @@ result.put("minute_rate", minute_rate.round(4));
 absence_deduction = 0;
 if(att_rules.get("absence").get("enabled"))
 {
-    absence_deduction = daily_rate * absent_days.toNumber();
+    abs_multiplier    = ifnull(att_rules.get("absence").get("multiplier"), 1).toDecimal();
+    absence_deduction = daily_rate * absent_days.toNumber() * abs_multiplier;
 }
 result.put("absence_deduction", absence_deduction.round(2));
 
@@ -220,7 +221,8 @@ result.put("absence_deduction", absence_deduction.round(2));
 unpaid_leave_deduction = 0;
 if(att_rules.get("unpaid_leave").get("enabled"))
 {
-    unpaid_leave_deduction = daily_rate * unpaid_leave_days.toDecimal();
+    ul_multiplier          = ifnull(att_rules.get("unpaid_leave").get("multiplier"), 1).toDecimal();
+    unpaid_leave_deduction = daily_rate * unpaid_leave_days.toDecimal() * ul_multiplier;
 }
 result.put("unpaid_leave_deduction", unpaid_leave_deduction.round(2));
 
@@ -230,7 +232,11 @@ result.put("unpaid_leave_deduction", unpaid_leave_deduction.round(2));
 late_deduction = 0;
 if(att_rules.get("late_deduction").get("enabled"))
 {
-    late_deduction = minute_rate * late_minutes.toNumber();
+    grace_min      = ifnull(att_rules.get("late_deduction").get("grace_minutes"), 0).toInteger();
+    billed_late    = late_minutes.toNumber() - grace_min;
+    if(billed_late < 0) { billed_late = 0; }
+    ld_multiplier  = ifnull(att_rules.get("late_deduction").get("multiplier"), 1).toDecimal();
+    late_deduction = minute_rate * billed_late * ld_multiplier;
 }
 result.put("late_deduction", late_deduction.round(2));
 
