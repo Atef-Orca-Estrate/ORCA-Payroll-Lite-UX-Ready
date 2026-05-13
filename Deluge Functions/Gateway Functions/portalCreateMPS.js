@@ -1,43 +1,33 @@
 // ============================================================
 // Function : portalCreateMPS
-// Phase    : B3
-// Trigger  : Webtab — feature_run_payroll, period selected
-// Inputs   : payroll_period  — String "YYYY-MM" (always from webtab)
-//            holiday_list    — String: newline-separated "YYYY-MM-DD Name" lines
-//                             (used if default_holiday_source = "manual")
-//                             (ignored if default_holiday_source = "zoho")
-//            working_days    — Integer
-//                             (from webtab JS calculation if manual)
-//                             (ignored if default_holiday_source = "zoho" — recalculated here)
+// Trigger  : RunPayroll wizard Step 1 — "Create" button
+// Inputs   : payroll_period      — String "YYYY-MM"
+//            scope               — String "all" | "by_department" | "by_employee"
+//            selected_department — String (empty when scope != by_department)
+//            selected_employees  — List of employee ID strings (by_employee scope)
+//            force               — Boolean — bypasses duplicate guard when true
+//                                  (only sent when allow_multiple_runs = true)
 // Returns  : {
 //     status       : "success" | "error"
-//     message      : String
+//     run_id       : String — MPS record ID (canonical run key)
 //     period       : String "YYYY-MM"
 //     working_days : Integer
-//     holidays     : String — mps_public_holidays text (for HR review before run)
-//     mps_id       : String — ID of created MPS record
+//     holidays     : [ { date: "YYYY-MM-DD", name: String } ]
+//     message      : String
 //   }
-// Reads    : PAYROLL_PORTAL_CONFIG.config, Zoho People holiday API (if source=zoho)
+// Error returns:
+//     { status: "error", message: "A payroll run for YYYY-MM already exists." }
+//     { status: "error", message: "Invalid payroll_period: ..." }
+//     { status: "error", message: "working_days resolved to 0 ..." }
+// Reads    : PAYROLL_PORTAL_CONFIG, Zoho holiday API (if source=zoho)
 // Writes   : Monthly_Payroll_Setup
 // ============================================================
 
-info "INIT. portalCreateMPS | period=" + payroll_period;
+info "INIT. portalCreateMPS | period=" + payroll_period + " | scope=" + scope + " | force=" + force;
 
 result = Map();
 
-// ── STEP 1: Load portal config ────────────────────────────────────────────────
-portal_cfg_response = invokeurl
-[
-	url :"https://people.zoho.com/people/api/v3/variables/PAYROLL_PORTAL_CONFIG/view?group=Orca_Payroll_Variables"
-	type :GET
-	connection:"zoho_people_payroll_conn"
-];
-portal_config   = portal_cfg_response.get("variable").get("value");
-config_block    = portal_config.get("config");
-holiday_source  = config_block.get("default_holiday_source");  // "zoho" | "manual"
-info "holiday_source=" + holiday_source;
-
-// ── STEP 2: Validate period format ───────────────────────────────────────────
+// ── STEP 1: Validate period format ───────────────────────────────────────────
 if(ifnull(payroll_period, "") == "" || payroll_period.length() != 7)
 {
 	result.put("status",  "error");
@@ -45,17 +35,38 @@ if(ifnull(payroll_period, "") == "" || payroll_period.length() != 7)
 	return result;
 }
 
+// ── STEP 2: Load portal config ────────────────────────────────────────────────
+portal_cfg_response = invokeurl
+[
+	url :"https://people.zoho.com/people/api/v3/variables/PAYROLL_PORTAL_CONFIG/view?group=Orca_Payroll_Variables"
+	type :GET
+	connection:"zoho_people_payroll_conn"
+];
+
+if(portal_cfg_response.get("variable") == null)
+{
+	result.put("status",  "error");
+	result.put("message", "PAYROLL_PORTAL_CONFIG not found. Run initial configuration first.");
+	return result;
+}
+
+portal_var     = portal_cfg_response.get("variable").get("value");
+config_block   = ifnull(portal_var.get("config"), Map());
+holiday_source = ifnull(config_block.get("default_holiday_source"), "zoho");
+allow_multi    = ifnull(config_block.get("allow_multiple_runs"),    false);
+
+info "holiday_source=" + holiday_source + " | allow_multiple_runs=" + allow_multi;
+
 // ── STEP 3: Duplicate period guard ───────────────────────────────────────────
+force_flag = (ifnull(force, false) == true || ifnull(force, "") == "true");
+
 existing_mps = zoho.people.getRecords("Monthly_Payroll_Setup",
 	{"searchField":"mps_payroll_period","searchOperator":"Is","searchText":payroll_period});
 
-if(existing_mps.size() > 0)
+if(existing_mps.size() > 0 && !force_flag)
 {
-	existing = existing_mps.get(0);
-	result.put("status",        "error");
-	result.put("message",       "Monthly_Payroll_Setup already exists for period " + payroll_period
-	                          + " (status: " + existing.get("mps_status") + ").");
-	result.put("existing_mps_id", existing.get("ID"));
+	result.put("status",  "error");
+	result.put("message", "A payroll run for " + payroll_period + " already exists.");
 	return result;
 }
 
@@ -63,19 +74,17 @@ if(existing_mps.size() > 0)
 period_start = (payroll_period + "-01").toDate();
 period_year  = period_start.year();
 period_month = period_start.month();
-// Last day: add 1 month then subtract 1 day — handles all month lengths
 period_end   = period_start.addMonth(1).subDay(1);
 
 info "period_start=" + period_start.toString("yyyy-MM-dd")
    + " | period_end=" + period_end.toString("yyyy-MM-dd");
 
 // ── STEP 5: Resolve holiday list and working days ─────────────────────────────
-mps_holidays_text = "";
 final_working_days = 0;
+holidays_list      = List();
 
 if(holiday_source == "zoho")
 {
-	// Fetch public holidays from Zoho People holiday calendar for the year
 	holiday_response = invokeurl
 	[
 		url :"https://people.zoho.com/people/api/leave/v2/holidays"
@@ -83,46 +92,48 @@ if(holiday_source == "zoho")
 		parameters:{"year":period_year.toString()}
 		connection:"zoho_people_payroll_conn"
 	];
-	info "Zoho holiday API response status: " + holiday_response.get("status");
 
-	// Build Date list and text — filter to current month only
-	zoho_holidays     = List();
-	mps_holidays_text = "";
+	zoho_holiday_dates = List();
 
-	if(holiday_response.get("status") == 0)
+	if(ifnull(holiday_response.get("status"), 1) == 0)
 	{
 		for each h in holiday_response.get("result")
 		{
 			h_date = h.get("date").toDate();
 			if(h_date.month() == period_month)
 			{
-				zoho_holidays.add(h_date);
-				mps_holidays_text = mps_holidays_text
-				                  + h_date.toString("yyyy-MM-dd")
-				                  + " " + h.get("name") + "\n";
+				zoho_holiday_dates.add(h_date);
+				hol = Map();
+				hol.put("date", h_date.toString("yyyy-MM-dd"));
+				hol.put("name", h.get("name"));
+				holidays_list.add(hol);
 			}
 		}
 	}
-	mps_holidays_text = mps_holidays_text.trim();
 
-	// Calculate working days server-side using native Deluge function
-	// Egyptian weekend: Friday + Saturday
-	// workDaysBetween is exclusive of start_date — subtract 1 day to include the 1st
 	final_working_days = period_start.subDay(1).workDaysBetween(
 	                       period_end,
 	                       {"Friday","Saturday"},
-	                       zoho_holidays
+	                       zoho_holiday_dates
 	                     );
 
-	info "Zoho source | zoho_holidays=" + zoho_holidays.size()
-	   + " | final_working_days=" + final_working_days;
+	info "Zoho source | holidays=" + holidays_list.size()
+	   + " | working_days=" + final_working_days;
 }
 else
 {
-	// "manual" — trust values passed in from webtab JS calculation
-	final_working_days = ifnull(working_days, "0").toInteger();
-	mps_holidays_text  = ifnull(holiday_list, "").trim();
-	info "Manual source | working_days=" + final_working_days;
+	// Manual source — holidays start empty; user adds via portalUpdateMPSHolidays
+	// Working days default comes from attendance settings
+	settings_response = invokeurl
+	[
+		url :"https://people.zoho.com/people/api/v3/variables/PAYROLL_SETTINGS_JSON/view?group=Orca_Payroll_Variables"
+		type :GET
+		connection:"zoho_people_payroll_conn"
+	];
+	att_raw            = ifnull(settings_response.get("variable").get("value").get("active_settings").get("attendance"), Map());
+	final_working_days = ifnull(att_raw.get("working_days_default"), 22).toInteger();
+	holidays_list      = List();
+	info "Manual source | default working_days=" + final_working_days;
 }
 
 // ── STEP 6: Working days safety floor ────────────────────────────────────────
@@ -134,29 +145,43 @@ if(final_working_days == null || final_working_days <= 0)
 	return result;
 }
 
-// ── STEP 7: Write Monthly_Payroll_Setup ──────────────────────────────────────
+// ── STEP 7: Serialise scope and holidays for storage ─────────────────────────
+scope_val        = ifnull(scope, "all");
+dept_val         = ifnull(selected_department, "");
+emps_val         = ifnull(selected_employees, List());
+holidays_json    = holidays_list.toString();   // stored as JSON string
+
+// ── STEP 8: Write Monthly_Payroll_Setup ──────────────────────────────────────
 mps_fields = Map();
-mps_fields.put("mps_payroll_period",  payroll_period);
-mps_fields.put("mps_working_days",    final_working_days);
-mps_fields.put("mps_public_holidays", mps_holidays_text);
-mps_fields.put("mps_status",          "Ready");
-mps_fields.put("mps_progress_total",  0);
-mps_fields.put("mps_progress_done",   0);
-mps_fields.put("mps_progress_error",  0);
-mps_fields.put("mps_payslip_issue_date", zoho.currenttime.toString("yyyy-MM-dd"));
-mps_fields.put("mps_created_by",        zoho.loginuserid);
-mps_fields.put("mps_created_at",        zoho.currenttime.toString("yyyy-MM-dd HH:mm:ss"));
+mps_fields.put("mps_payroll_period",     payroll_period);
+mps_fields.put("mps_working_days",       final_working_days);
+mps_fields.put("mps_public_holidays",    holidays_json);
+mps_fields.put("mps_status",             "Draft");
+mps_fields.put("mps_scope",              scope_val);
+mps_fields.put("mps_selected_department",dept_val);
+mps_fields.put("mps_selected_employees", emps_val.toString());
+mps_fields.put("mps_progress_total",     0);
+mps_fields.put("mps_progress_done",      0);
+mps_fields.put("mps_progress_error",     0);
+mps_fields.put("mps_batches",            0);
+mps_fields.put("mps_gross",              null);
+mps_fields.put("mps_net",               null);
+mps_fields.put("mps_tax",               null);
+mps_fields.put("mps_si",               null);
+mps_fields.put("mps_created_by",         zoho.loginuserid);
+mps_fields.put("mps_created_at",         zoho.currenttime.toString("yyyy-MM-dd HH:mm:ss"));
 
 create_response = zoho.people.addRecord("Monthly_Payroll_Setup", mps_fields);
 new_mps_id      = create_response.get("ID");
 
-info "END. portalCreateMPS | mps_id=" + new_mps_id
-   + " | working_days=" + final_working_days;
+info "END. portalCreateMPS | run_id=" + new_mps_id
+   + " | working_days=" + final_working_days
+   + " | holidays=" + holidays_list.size();
 
 result.put("status",       "success");
-result.put("message",      "Monthly_Payroll_Setup created for period " + payroll_period + ".");
+result.put("run_id",       new_mps_id);
 result.put("period",       payroll_period);
 result.put("working_days", final_working_days);
-result.put("holidays",     mps_holidays_text);
-result.put("mps_id",       new_mps_id);
+result.put("holidays",     holidays_list);
+result.put("message",      "MPS created for " + payroll_period);
 return result;

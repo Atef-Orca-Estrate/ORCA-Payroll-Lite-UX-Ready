@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useGateway } from '../../hooks/useGateway';
-import { useToast }   from '../../context/AuthContext';
+import { useGateway }    from '../../hooks/useGateway';
+import { useToast }      from '../../context/AuthContext';
+import { MonthPicker }   from '../../components/MonthPicker';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ACCENT       = '#6366F1';
@@ -42,13 +43,14 @@ function PeriodHeader({ period, onChange, mpsStatus, countdown, lastUpdated, onR
       justifyContent: 'space-between', gap: 10,
       marginBottom: 16,
     }}>
-      {/* Left: title + live dot */}
+      {/* Left: title + period picker + live dot */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
               Queue Monitor
             </h1>
+            <MonthPicker value={period} onChange={onChange} />
             {isLive && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 5,
                 background: 'rgba(99,102,241,0.10)', border: '1px solid rgba(99,102,241,0.20)',
@@ -69,7 +71,7 @@ function PeriodHeader({ period, onChange, mpsStatus, countdown, lastUpdated, onR
         </div>
       </div>
 
-      {/* Right: period picker + refresh controls */}
+      {/* Right: navigate to RunPayroll + refresh controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {/* Cross-navigate to RunPayroll */}
         {mpsStatus && mpsStatus !== 'none' && (
@@ -85,18 +87,6 @@ function PeriodHeader({ period, onChange, mpsStatus, countdown, lastUpdated, onR
             View in Run Payroll →
           </button>
         )}
-
-        {/* Period picker */}
-        <input type="month" value={period} onChange={e => onChange(e.target.value)}
-          style={{
-            border: '1px solid var(--border)', borderRadius: 7,
-            padding: '6px 10px', fontSize: 12.5,
-            background: 'var(--surface)', color: 'var(--text-primary)',
-            outline: 'none', fontFamily: 'inherit',
-          }}
-          onFocus={e => e.target.style.borderColor = ACCENT}
-          onBlur={e  => e.target.style.borderColor = 'var(--border)'}
-        />
 
         {/* Refresh button + countdown */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -260,12 +250,10 @@ function QueueRow({ rec, type }) {
         padding: '9px 16px', gap: 12,
       }}>
         <div style={{ minWidth: 0, flex: 1 }}>
+          {/* Name + termination tag */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{
-              fontSize: 12.5, fontWeight: 500, color: 'var(--text-primary)',
-              fontFamily: 'monospace',
-            }}>
-              {rec.employee_id}
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+              {rec.employee_name || rec.employee_id}
             </span>
             {type === 'termination' && (
               <span style={{
@@ -277,6 +265,11 @@ function QueueRow({ rec, type }) {
               </span>
             )}
           </div>
+          {/* ID · Department */}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'monospace' }}>
+            {[rec.employee_id, rec.department].filter(Boolean).join(' · ')}
+          </div>
+          {/* Error or status */}
           {rec.error ? (
             <div style={{ marginTop: 3 }}>
               <div style={{ fontSize: 11, color: '#DC2626' }}>{rec.error}</div>
@@ -285,7 +278,7 @@ function QueueRow({ rec, type }) {
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, fontFamily: 'inherit' }}>
               {rec.processed_at ? `Processed at ${rec.processed_at}` : rec.status.toLowerCase()}
             </div>
           )}
@@ -513,6 +506,69 @@ function RecordsSection({ data, mpsStatus }) {
   );
 }
 
+// ─── Run Tabs — shown when a period has multiple runs ────────────────────────
+function runScopeLabel(run) {
+  if (!run.scope || run.scope === 'all') return 'All employees';
+  if (run.scope === 'by_department') return run.selected_department || 'By department';
+  if (run.scope === 'by_employee') {
+    const n = run.selected_employees?.length || run.employees || 0;
+    return `${n} employee${n !== 1 ? 's' : ''}`;
+  }
+  return run.run_id || 'Run';
+}
+
+function RunTabs({ runs, activeRunId, onSelect }) {
+  return (
+    <div style={{
+      flexShrink: 0,
+      display: 'flex', alignItems: 'center', gap: 0,
+      borderBottom: '1px solid var(--border)',
+      marginBottom: 14,
+      overflowX: 'auto',
+    }}>
+      {runs.map((run, idx) => {
+        const isActive     = run.run_id === activeRunId;
+        const statusColor  = run.status === 'Completed' ? '#16A34A'
+          : run.status === 'Processing' ? ACCENT : 'var(--text-muted)';
+        const isPulsing    = run.status === 'Processing';
+        return (
+          <button key={run.run_id || idx} onClick={() => onSelect(run.run_id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '9px 16px',
+              fontSize: 12, fontWeight: isActive ? 600 : 400,
+              color: isActive ? ACCENT : 'var(--text-secondary)',
+              background: 'none', border: 'none',
+              borderBottom: `2px solid ${isActive ? ACCENT : 'transparent'}`,
+              marginBottom: -1,
+              cursor: 'pointer', fontFamily: 'inherit',
+              whiteSpace: 'nowrap', flexShrink: 0,
+              transition: 'color 120ms',
+            }}
+            onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+              background: statusColor,
+              boxShadow: isPulsing ? `0 0 0 2px rgba(99,102,241,0.25)` : 'none',
+              animation: isPulsing ? 'orca-pulse 1.8s ease-in-out infinite' : 'none',
+            }} />
+            {runScopeLabel(run)}
+            <span style={{
+              fontSize: 10, padding: '1px 6px', borderRadius: 99, fontWeight: 600,
+              background: isActive ? ACCENT_BG : 'var(--surface-inset)',
+              color: isActive ? ACCENT_TEXT : 'var(--text-secondary)',
+            }}>
+              {run.status}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Empty States ─────────────────────────────────────────────────────────────
 function EmptyState({ type, period, onNavigate }) {
   const isNone  = type === 'none';
@@ -572,11 +628,13 @@ function EmptyState({ type, period, onNavigate }) {
 }
 
 // ─── Main QueueMonitor ────────────────────────────────────────────────────────
-export default function QueueMonitor({ onNavigate }) {
+export default function QueueMonitor({ onNavigate, navParams = {} }) {
   const gateway = useGateway();
   const { show: showToast } = useToast();
 
-  const [period,      setPeriod]      = useState(currentMonth());
+  const [period,      setPeriod]      = useState(navParams?.period || currentMonth());
+  const [runId,       setRunId]       = useState(navParams?.run_id || null);
+  const [periodRuns,  setPeriodRuns]  = useState(null); // runs for current period (for tabs)
   const [data,        setData]        = useState(null);
   const [initLoading, setInitLoading] = useState(true);
   const [loading,     setLoading]     = useState(false);
@@ -593,7 +651,7 @@ export default function QueueMonitor({ onNavigate }) {
   const loadData = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
     try {
-      const result = await gateway.invoke('portalGetQueueStatus', { payroll_period: period });
+      const result = await gateway.invoke('portalGetQueueStatus', { payroll_period: period, run_id: runId });
       if (result.status === 'success') {
         setData(result);
         setLastUpdated(new Date());
@@ -612,16 +670,16 @@ export default function QueueMonitor({ onNavigate }) {
       setLoading(false);
       setInitLoading(false);
     }
-  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [period, runId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load on period change
+  // Load on period or run_id change
   useEffect(() => {
     setData(null);
     setInitLoading(true);
     setLastUpdated(null);
     clearTimers();
     loadData(true);
-  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [period, runId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Polling — only when Processing
   useEffect(() => {
@@ -648,8 +706,31 @@ export default function QueueMonitor({ onNavigate }) {
     };
   }, [data?.mps_status, loadData]);
 
+  // Load all runs for the selected period → determines whether to show tabs
+  useEffect(() => {
+    setPeriodRuns(null);
+    (async () => {
+      try {
+        const result = await gateway.invoke('portalListRuns');
+        if (result.status === 'success') {
+          const forPeriod = result.runs.filter(r => r.period === period);
+          setPeriodRuns(forPeriod);
+          // Auto-select first run when period has multiple runs and no run already targeted
+          if (forPeriod.length > 1 && !runId) {
+            setRunId(forPeriod[0]?.run_id || null);
+          }
+        }
+      } catch { /* silent — tabs just won't show */ }
+    })();
+  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleNavigateRunPayroll = () => {
-    if (onNavigate) onNavigate('feature_run_payroll', { period });
+    if (onNavigate) onNavigate('feature_run_payroll', { period, run_id: runId });
+  };
+
+  const handleChangePeriod = (newPeriod) => {
+    setPeriod(newPeriod);
+    setRunId(null);
   };
 
   const mpsStatus = data?.mps_status || null;
@@ -662,7 +743,7 @@ export default function QueueMonitor({ onNavigate }) {
       }}>
         <PeriodHeader
           period={period}
-          onChange={setPeriod}
+          onChange={handleChangePeriod}
           mpsStatus={mpsStatus}
           countdown={countdown}
           lastUpdated={lastUpdated}
@@ -670,6 +751,15 @@ export default function QueueMonitor({ onNavigate }) {
           loading={loading}
           onNavigateRunPayroll={handleNavigateRunPayroll}
         />
+
+        {/* Run tabs — only shown when period has multiple runs */}
+        {periodRuns && periodRuns.length > 1 && (
+          <RunTabs
+            runs={periodRuns}
+            activeRunId={runId}
+            onSelect={id => setRunId(id)}
+          />
+        )}
 
         {/* Content area */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

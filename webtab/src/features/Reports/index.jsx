@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useGateway } from '../../hooks/useGateway';
-import { useToast }   from '../../context/AuthContext';
+import { useState, useEffect, useRef } from 'react';
+import { useGateway }  from '../../hooks/useGateway';
+import { useToast }    from '../../context/AuthContext';
+import { MonthPicker } from '../../components/MonthPicker';
 
 const currentMonth = () => {
   const d = new Date();
@@ -60,14 +61,20 @@ export default function Reports({ navParams = {} }) {
   const [period,  setPeriod]  = useState(navParams?.period || currentMonth());
   const [report,  setReport]  = useState(null);
   const [loading, setLoading] = useState(false);
+  const autoLoadedRef = useRef(null);
 
-  // Pre-fill and auto-load when navigated from RunPayroll with a period
+  // Auto-load when navigated from RunPayroll with a period
   useEffect(() => {
-    if (navParams?.period) {
-      setPeriod(navParams.period);
-      setReport(null);
-    }
-  }, [navParams?.period]);
+    if (!navParams?.period || navParams.period === autoLoadedRef.current) return;
+    autoLoadedRef.current = navParams.period;
+    setPeriod(navParams.period);
+    setReport(null);
+    setLoading(true);
+    gateway.invoke('portalGetPeriodReport', { payroll_period: navParams.period })
+      .then(r => { if (r.status === 'success') setReport(r); else showToast(r.message || 'Failed to load report', 'error'); })
+      .catch(() => showToast('Report load failed', 'error'))
+      .finally(() => setLoading(false));
+  }, [navParams?.period]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadReport = async () => {
     setLoading(true);
@@ -90,17 +97,7 @@ export default function Reports({ navParams = {} }) {
 
       {/* Period picker + generate */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <input
-          type="month" value={period} onChange={e => setPeriod(e.target.value)}
-          style={{
-            border: '1px solid var(--border)', borderRadius: 8,
-            padding: '8px 12px', fontSize: 13,
-            background: 'var(--surface)', color: 'var(--text-primary)',
-            outline: 'none', fontFamily: 'inherit',
-          }}
-          onFocus={e => e.target.style.borderColor = ACCENT}
-          onBlur={e  => e.target.style.borderColor = 'var(--border)'}
-        />
+        <MonthPicker value={period} onChange={setPeriod} />
         <button onClick={loadReport} disabled={loading}
           style={{
             padding: '8px 20px',

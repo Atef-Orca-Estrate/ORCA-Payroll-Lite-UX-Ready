@@ -21,6 +21,10 @@ import {
   mock_portalRemovePortalUser,
   mock_portalGetDepartments,
   mock_portalGetEmployees,
+  mock_portalGetDashboard,
+  mock_portalUpdateMPSHolidays,
+  mock_portalListEmployees,
+  mock_portalUpdateEmployee,
 } from './mockData.js';
 
 // Maps function name → mock handler function
@@ -38,6 +42,10 @@ const MOCK_HANDLERS = {
   portalRemovePortalUser:    mock_portalRemovePortalUser,
   portalGetDepartments:      mock_portalGetDepartments,
   portalGetEmployees:        mock_portalGetEmployees,
+  portalGetDashboard:        mock_portalGetDashboard,
+  portalUpdateMPSHolidays:   mock_portalUpdateMPSHolidays,
+  portalListEmployees:       mock_portalListEmployees,
+  portalUpdateEmployee:      mock_portalUpdateEmployee,
 };
 
 // Simulates realistic network latency in mock mode
@@ -67,10 +75,16 @@ export function useGateway() {
     // DO NOT REMOVE — this is the live API call that runs in production.
     try {
       const result = await window.ZOHO.PEOPLE.invoke(fnName, { params });
+      // Normalize null/undefined so all feature error checks work uniformly
+      if (result == null) {
+        console.error(`[useGateway] ${fnName} returned no response.`);
+        return { status: 'error', message: `${fnName} returned no response from the server.` };
+      }
       return result;
     } catch (err) {
+      // Convert SDK exceptions to { status, message } so callers never handle thrown errors
       console.error(`[useGateway] ${fnName} failed:`, err);
-      throw err;
+      return { status: 'error', message: err?.message || `${fnName} failed unexpectedly. Please try again.` };
     }
   };
 

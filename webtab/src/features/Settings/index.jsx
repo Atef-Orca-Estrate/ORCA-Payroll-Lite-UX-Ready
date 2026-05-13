@@ -1,24 +1,24 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAuth, useToast } from '../../context/AuthContext';
 import { useGateway }        from '../../hooks/useGateway';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const ACCENT       = '#6366F1';
-const ACCENT_BG    = '#EEF2FF';
-const ACCENT_TEXT  = '#3730A3';
-const GRAPHITE     = '#111827';
-const GRAPHITE_H   = '#1F2937';
+const ACCENT      = '#6366F1';
+const ACCENT_BG   = '#EEF2FF';
+const ACCENT_TEXT = '#3730A3';
+const GRAPHITE    = '#111827';
+const GRAPHITE_H  = '#1F2937';
 
 // ─── Base components ────────────────────────────────────────────────────────
 
-function SectionCard({ title, children, onSave, saving, badge }) {
+function SectionCard({ title, children, onSave, saving, badge, dirty = true }) {
+  const saveDisabled = saving || !dirty;
   return (
     <div style={{
       background: 'var(--surface)',
       border: '1px solid var(--border)',
       borderRadius: 12,
       overflow: 'hidden',
-      marginBottom: 12,
     }}>
       <div style={{
         padding: '10px 16px',
@@ -44,19 +44,19 @@ function SectionCard({ title, children, onSave, saving, badge }) {
         <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
           <button
             onClick={onSave}
-            disabled={saving}
+            disabled={saveDisabled}
             style={{
               width: '100%', padding: '9px 16px',
-              background: saving ? 'var(--surface-inset)' : GRAPHITE,
-              color: saving ? 'var(--text-muted)' : '#fff',
+              background: saveDisabled ? 'var(--surface-inset)' : GRAPHITE,
+              color: saveDisabled ? 'var(--text-muted)' : '#fff',
               border: 'none', borderRadius: 8,
               fontSize: 12.5, fontWeight: 600,
-              cursor: saving ? 'not-allowed' : 'pointer',
+              cursor: saveDisabled ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               fontFamily: 'inherit', transition: 'background 120ms',
             }}
-            onMouseEnter={e => { if (!saving) e.currentTarget.style.background = GRAPHITE_H; }}
-            onMouseLeave={e => { if (!saving) e.currentTarget.style.background = GRAPHITE; }}
+            onMouseEnter={e => { if (!saveDisabled) e.currentTarget.style.background = GRAPHITE_H; }}
+            onMouseLeave={e => { if (!saveDisabled) e.currentTarget.style.background = saveDisabled ? 'var(--surface-inset)' : GRAPHITE; }}
           >
             {saving && (
               <div style={{
@@ -157,146 +157,11 @@ function SelectField({ value, onChange, options, width = 'auto' }) {
   );
 }
 
-function FormulaHint({ text }) {
-  return (
-    <div style={{
-      margin: '0 16px 10px',
-      padding: '7px 10px',
-      background: 'var(--surface-raised)',
-      border: '1px solid var(--border)',
-      borderRadius: 6, fontSize: 10.5,
-      color: 'var(--text-muted)',
-      fontFamily: 'monospace', lineHeight: 1.6,
-    }}>
-      {text}
-    </div>
-  );
-}
-
 function Divider() {
   return <div style={{ height: 1, background: 'var(--surface-inset)', margin: '2px 0' }} />;
 }
 
-// ─── Section 1 — Payroll Run ────────────────────────────────────────────────
-function PayrollRunSection() {
-  const { auth, setAuth } = useAuth();
-  const gateway = useGateway();
-  const { show: showToast } = useToast();
-
-  const pr0 = auth.payrollSettings?.payroll_run || {};
-  const [scope,     setScope]     = useState(pr0.scope     || 'all');
-  const [dept,      setDept]      = useState(pr0.department || '');
-  const [empIds,    setEmpIds]    = useState((pr0.selected_employees || []).join(', '));
-  const [saving,    setSaving]    = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const selected_employees = scope === 'by_employee'
-        ? empIds.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-      const result = await gateway.invoke('portalSaveSettings', {
-        section: 'payroll_settings',
-        // Pass current SI/tax values through unchanged — this section owns the full
-        // PAYROLL_SETTINGS_JSON write. Reading from auth ensures we never null-overwrite.
-        // AUD-009: in production auth.payrollSettings is flat; mock uses nested schema.
-        apply_insurance: auth.payrollSettings?.apply_insurance ?? true,
-        entity_type:     auth.payrollSettings?.entity_type     ?? 'Legal Entity',
-        apply_tax:       auth.payrollSettings?.apply_tax       ?? true,
-        // Scope fields
-        scope,
-        selected_department: scope === 'by_department' ? dept : '',
-        // AUD-011 (tracked): gateway silently drops selected_employees — pending engine fix
-        selected_employees,
-      });
-      if (result.status === 'success') {
-        showToast('Payroll run settings saved', 'success');
-        setAuth(prev => ({
-          ...prev,
-          payrollSettings: {
-            ...prev.payrollSettings,
-            payroll_run: { scope, selected_department: dept || null, selected_employees },
-          },
-        }));
-      } else {
-        showToast(result.message || 'Save failed', 'error');
-      }
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <SectionCard title="Payroll Run" onSave={handleSave} saving={saving}>
-      <SettingRow label="Run scope" sub="Determines which employees are included in each payroll run">
-        <SelectField
-          value={scope} onChange={setScope}
-          options={[
-            { value: 'all',           label: 'All active employees' },
-            { value: 'by_department', label: 'By department' },
-            { value: 'by_employee',   label: 'Selected employees' },
-          ]}
-        />
-      </SettingRow>
-
-      {scope === 'by_department' && (
-        <div style={{ padding: '0 16px 12px' }}>
-          <label style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>
-            Department name
-          </label>
-          <input
-            type="text"
-            value={dept}
-            onChange={e => setDept(e.target.value)}
-            placeholder="e.g. Engineering"
-            style={{
-              width: '100%', border: '1px solid var(--border)', borderRadius: 7,
-              padding: '7px 10px', fontSize: 12.5,
-              background: 'var(--surface)', color: 'var(--text-primary)',
-              outline: 'none', fontFamily: 'inherit',
-            }}
-            onFocus={e => e.target.style.borderColor = ACCENT}
-            onBlur={e  => e.target.style.borderColor = 'var(--border)'}
-          />
-        </div>
-      )}
-
-      {scope === 'by_employee' && (
-        <div style={{ padding: '0 16px 12px' }}>
-          <label style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>
-            Employee IDs — comma separated
-          </label>
-          <textarea
-            value={empIds}
-            onChange={e => setEmpIds(e.target.value)}
-            placeholder="EMP001, EMP002, EMP003"
-            rows={3}
-            style={{
-              width: '100%', border: '1px solid var(--border)', borderRadius: 7,
-              padding: '7px 10px', fontSize: 12.5,
-              background: 'var(--surface)', color: 'var(--text-primary)',
-              outline: 'none', fontFamily: 'monospace', resize: 'vertical',
-            }}
-            onFocus={e => e.target.style.borderColor = ACCENT}
-            onBlur={e  => e.target.style.borderColor = 'var(--border)'}
-          />
-          <p style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 5 }}>
-            Selection clears automatically after a successful run.
-          </p>
-        </div>
-      )}
-
-      <div style={{
-        margin: '4px 16px 8px',
-        padding: '8px 12px',
-        background: 'var(--surface-inset)',
-        borderRadius: 7, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5,
-      }}>
-        Termination runs are always processed through the payroll queue — no immediate mode.
-      </div>
-    </SectionCard>
-  );
-}
-
-// ─── Section 2 — Attendance ─────────────────────────────────────────────────
+// ─── Section 1 — Attendance ─────────────────────────────────────────────────
 function AttendanceSection() {
   const { auth, setAuth } = useAuth();
   const gateway = useGateway();
@@ -304,19 +169,35 @@ function AttendanceSection() {
 
   const att0 = auth.payrollSettings?.attendance || {};
 
-  const [wdDefault,    setWdDefault]    = useState(att0.working_days_default ?? 22);
-  const [absEn,        setAbsEn]        = useState(att0.absence?.enabled        ?? true);
-  const [absMul,       setAbsMul]       = useState(att0.absence?.multiplier     ?? 1.0);
-  const [ulEn,         setUlEn]         = useState(att0.unpaid_leave?.enabled   ?? true);
-  const [ulMul,        setUlMul]        = useState(att0.unpaid_leave?.multiplier ?? 1.0);
-  const [lateEn,       setLateEn]       = useState(att0.late_deduction?.enabled      ?? true);
-  const [lateGrace,    setLateGrace]    = useState(att0.late_deduction?.grace_minutes ?? 0);
-  const [lateMul,      setLateMul]      = useState(att0.late_deduction?.multiplier    ?? 1.0);
-  const [otEn,         setOtEn]         = useState(att0.overtime?.enabled       ?? true);
-  const [otMul,        setOtMul]        = useState(att0.overtime?.multiplier    ?? 1.5);
-  const [phEn,         setPhEn]         = useState(att0.public_holiday?.enabled  ?? true);
-  const [phIfWorked,   setPhIfWorked]   = useState(att0.public_holiday?.if_worked ?? 'overtime_rate');
-  const [saving,       setSaving]       = useState(false);
+  const [wdDefault,  setWdDefault]  = useState(att0.working_days_default          ?? 22);
+  const [absEn,      setAbsEn]      = useState(att0.absence?.enabled               ?? true);
+  const [absMul,     setAbsMul]     = useState(att0.absence?.multiplier            ?? 1.0);
+  const [ulEn,       setUlEn]       = useState(att0.unpaid_leave?.enabled          ?? true);
+  const [ulMul,      setUlMul]      = useState(att0.unpaid_leave?.multiplier       ?? 1.0);
+  const [lateEn,     setLateEn]     = useState(att0.late_deduction?.enabled        ?? true);
+  const [lateGrace,  setLateGrace]  = useState(att0.late_deduction?.grace_minutes  ?? 0);
+  const [lateMul,    setLateMul]    = useState(att0.late_deduction?.multiplier     ?? 1.0);
+  const [otEn,       setOtEn]       = useState(att0.overtime?.enabled              ?? true);
+  const [otMul,      setOtMul]      = useState(att0.overtime?.multiplier           ?? 1.5);
+  const [phEn,       setPhEn]       = useState(att0.public_holiday?.enabled        ?? true);
+  const [phIfWorked, setPhIfWorked] = useState(att0.public_holiday?.if_worked      ?? 'overtime_rate');
+  const [saving,     setSaving]     = useState(false);
+
+  const saved = useRef({ wdDefault, absEn, absMul, ulEn, ulMul, lateEn, lateGrace, lateMul, otEn, otMul, phEn, phIfWorked });
+
+  const isDirty =
+    wdDefault  !== saved.current.wdDefault  ||
+    absEn      !== saved.current.absEn      ||
+    absMul     !== saved.current.absMul     ||
+    ulEn       !== saved.current.ulEn       ||
+    ulMul      !== saved.current.ulMul      ||
+    lateEn     !== saved.current.lateEn     ||
+    lateGrace  !== saved.current.lateGrace  ||
+    lateMul    !== saved.current.lateMul    ||
+    otEn       !== saved.current.otEn       ||
+    otMul      !== saved.current.otMul      ||
+    phEn       !== saved.current.phEn       ||
+    phIfWorked !== saved.current.phIfWorked;
 
   const handleSave = async () => {
     setSaving(true);
@@ -329,16 +210,11 @@ function AttendanceSection() {
       public_holiday: { enabled: phEn,   if_worked: phIfWorked },
     };
     try {
-      const result = await gateway.invoke('portalSaveSettings', {
-        section: 'attendance',
-        ...newAtt,
-      });
+      const result = await gateway.invoke('portalSaveSettings', { section: 'attendance', ...newAtt });
       if (result.status === 'success') {
         showToast('Attendance settings saved', 'success');
-        setAuth(prev => ({
-          ...prev,
-          payrollSettings: { ...prev.payrollSettings, attendance: newAtt },
-        }));
+        saved.current = { wdDefault, absEn, absMul, ulEn, ulMul, lateEn, lateGrace, lateMul, otEn, otMul, phEn, phIfWorked };
+        setAuth(prev => ({ ...prev, payrollSettings: { ...prev.payrollSettings, attendance: newAtt } }));
       } else {
         showToast(result.message || 'Save failed', 'error');
       }
@@ -346,58 +222,42 @@ function AttendanceSection() {
   };
 
   return (
-    <SectionCard title="Attendance" onSave={handleSave} saving={saving}>
+    <SectionCard title="Attendance" onSave={handleSave} saving={saving} dirty={isDirty}>
 
-      {/* Default working days */}
-      <SettingRow
-        label="Default working days"
-        sub="Fallback value if working days are not set on the monthly payroll setup"
-      >
+      <SettingRow label="Default working days" sub="Fallback if not set on monthly payroll setup">
         <NumberInput value={wdDefault} onChange={setWdDefault} min={1} max={30} step={1} width={60} />
       </SettingRow>
 
       <Divider />
 
-      {/* Absence */}
       <SettingRow label="Absence deduction" sub="Deduct for unexcused absent days">
         <Toggle value={absEn} onChange={setAbsEn} />
       </SettingRow>
       {absEn && (
-        <>
-          <SettingRow label="Absence multiplier" sub="Applied to daily rate per absent day">
-            <NumberInput value={absMul} onChange={setAbsMul} min={1.0} max={5.0} step={0.25} width={72} />
-          </SettingRow>
-          <FormulaHint text={`Deduction = (Gross ÷ Working days) × Absent days × ${absMul.toFixed(2)}`} />
-        </>
+        <SettingRow label="Absence multiplier" sub="Applied to daily rate per absent day">
+          <NumberInput value={absMul} onChange={setAbsMul} min={1.0} max={5.0} step={0.25} width={72} />
+        </SettingRow>
       )}
 
       <Divider />
 
-      {/* Unpaid leave */}
       <SettingRow label="Unpaid leave deduction" sub="Deduct for HR-approved unpaid leave days">
         <Toggle value={ulEn} onChange={setUlEn} />
       </SettingRow>
       {ulEn && (
-        <>
-          <SettingRow label="Unpaid leave multiplier" sub="Applied to daily rate per unpaid leave day">
-            <NumberInput value={ulMul} onChange={setUlMul} min={1.0} max={5.0} step={0.25} width={72} />
-          </SettingRow>
-          <FormulaHint text={`Deduction = (Gross ÷ Working days) × Unpaid days × ${ulMul.toFixed(2)}`} />
-        </>
+        <SettingRow label="Unpaid leave multiplier" sub="Applied to daily rate per unpaid leave day">
+          <NumberInput value={ulMul} onChange={setUlMul} min={1.0} max={5.0} step={0.25} width={72} />
+        </SettingRow>
       )}
 
       <Divider />
 
-      {/* Late deduction */}
       <SettingRow label="Late deduction" sub="Deduct for accumulated late minutes">
         <Toggle value={lateEn} onChange={setLateEn} />
       </SettingRow>
       {lateEn && (
         <>
-          <SettingRow
-            label="Grace period"
-            sub="Monthly late minutes before deduction starts (0 = every minute counted)"
-          >
+          <SettingRow label="Grace period" sub="Monthly late minutes before deduction starts">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <NumberInput value={lateGrace} onChange={setLateGrace} min={0} max={480} step={5} width={60} />
               <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>mins</span>
@@ -406,26 +266,11 @@ function AttendanceSection() {
           <SettingRow label="Late multiplier" sub="Applied to per-minute rate after grace period">
             <NumberInput value={lateMul} onChange={setLateMul} min={1.0} max={5.0} step={0.25} width={72} />
           </SettingRow>
-          <FormulaHint text={
-            `Minute rate = (Gross ÷ Working days ÷ 8) ÷ 60\n` +
-            `Effective mins = max(Total late mins − ${lateGrace}, 0)\n` +
-            `Deduction = Minute rate × Effective mins × ${lateMul.toFixed(2)}`
-          } />
-          <div style={{
-            margin: '0 16px 10px',
-            padding: '6px 10px',
-            background: 'rgba(245,158,11,0.08)',
-            border: '1px solid rgba(245,158,11,0.20)',
-            borderRadius: 6, fontSize: 10.5, color: '#B45309',
-          }}>
-            ⚠ Grace period and multiplier are saved to the org variable but not yet active in the engine. See PENDING_CONFIG.md items PC-03 and PC-04.
-          </div>
         </>
       )}
 
       <Divider />
 
-      {/* Overtime */}
       <SettingRow label="Overtime pay" sub="Add overtime pay for extra hours worked">
         <Toggle value={otEn} onChange={setOtEn} />
       </SettingRow>
@@ -444,75 +289,59 @@ function AttendanceSection() {
 
       <Divider />
 
-      {/* Public holiday */}
       <SettingRow label="Public holiday pay" sub="Extra pay when employees work on public holidays">
         <Toggle value={phEn} onChange={setPhEn} />
       </SettingRow>
       {phEn && (
-        <>
-          <SettingRow label="If worked, pay at" sub="Rate applied to days worked on public holidays">
-            <SelectField
-              value={phIfWorked}
-              onChange={setPhIfWorked}
-              options={[
-                { value: 'overtime_rate', label: 'Overtime rate (uses multiplier above)' },
-                { value: 'double_rate',   label: 'Double rate (2×)' },
-                { value: 'paid_day',      label: 'No extra pay (paid day off treated as normal)' },
-              ]}
-            />
-          </SettingRow>
-          {phIfWorked === 'overtime_rate' && (
-            <div style={{
-              margin: '0 16px 10px', padding: '6px 10px',
-              background: ACCENT_BG, border: '1px solid var(--accent-border)',
-              borderRadius: 6, fontSize: 10.5, color: ACCENT_TEXT,
-            }}>
-              Uses overtime multiplier ({otEn ? `${otMul}×` : 'overtime disabled — enable above'})
-            </div>
-          )}
-        </>
+        <SettingRow label="If worked, pay at" sub="Rate applied to days worked on public holidays" last>
+          <SelectField
+            value={phIfWorked}
+            onChange={setPhIfWorked}
+            options={[
+              { value: 'overtime_rate', label: 'Overtime rate' },
+              { value: 'double_rate',   label: 'Double rate (2×)' },
+              { value: 'paid_day',      label: 'No extra pay' },
+            ]}
+          />
+        </SettingRow>
       )}
     </SectionCard>
   );
 }
 
-// ─── Section 3 — Social Insurance ──────────────────────────────────────────
+// ─── Section 2 — Social Insurance ──────────────────────────────────────────
 function SocialInsuranceSection() {
   const { auth, setAuth } = useAuth();
   const gateway = useGateway();
   const { show: showToast } = useToast();
 
   const si0 = auth.payrollSettings?.social_insurance || {};
-  const [ceiling,  setCeiling]  = useState(si0.monthly_ceiling ?? 9400);
-  const [saving,   setSaving]   = useState(false);
+  const [ceiling, setCeiling] = useState(si0.monthly_ceiling ?? 9400);
+  const [saving,  setSaving]  = useState(false);
 
-  // Warning: show if ceiling_updated is before the current calendar year
-  const ceilingYear    = si0.ceiling_updated ? new Date(si0.ceiling_updated).getFullYear() : 0;
-  const currentYear    = new Date().getFullYear();
-  const showWarning    = ceilingYear < currentYear;
-  const fmtDate        = si0.ceiling_updated
+  const saved = useRef({ ceiling: si0.monthly_ceiling ?? 9400 });
+  const isDirty = ceiling !== saved.current.ceiling;
+
+  const ceilingYear = si0.ceiling_updated ? new Date(si0.ceiling_updated).getFullYear() : 0;
+  const currentYear = new Date().getFullYear();
+  const showWarning = ceilingYear < currentYear;
+  const fmtDate     = si0.ceiling_updated
     ? new Date(si0.ceiling_updated).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const result = await gateway.invoke('portalSaveSettings', {
-        section:         'social_insurance',
-        monthly_ceiling: ceiling,
-      });
+      const result = await gateway.invoke('portalSaveSettings', { section: 'social_insurance', monthly_ceiling: ceiling });
       if (result.status === 'success') {
         const today = new Date().toISOString().split('T')[0];
         showToast('Social insurance settings saved', 'success');
+        saved.current = { ceiling };
         setAuth(prev => ({
           ...prev,
           payrollSettings: {
             ...prev.payrollSettings,
-            social_insurance: {
-              ...prev.payrollSettings.social_insurance,
-              monthly_ceiling: ceiling,
-              ceiling_updated: today,
-            },
+            social_insurance: { ...prev.payrollSettings.social_insurance, monthly_ceiling: ceiling, ceiling_updated: today },
           },
         }));
       } else {
@@ -523,57 +352,52 @@ function SocialInsuranceSection() {
 
   const badge = showWarning ? (
     <span style={{
-      background: 'rgba(245,158,11,0.12)',
-      border: '1px solid rgba(245,158,11,0.30)',
-      color: '#B45309',
-      fontSize: 10, fontWeight: 600,
-      padding: '2px 8px', borderRadius: 99,
+      background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.30)',
+      color: '#B45309', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
     }}>
-      ⚠ Verify against current GOSI ceiling
+      ⚠ Verify ceiling
     </span>
   ) : null;
 
   return (
-    <SectionCard title="Social Insurance" onSave={handleSave} saving={saving} badge={badge}>
+    <SectionCard title="Social Insurance" onSave={handleSave} saving={saving} badge={badge} dirty={isDirty}>
 
       {showWarning && (
         <div style={{
-          margin: '8px 16px 0',
-          padding: '8px 12px',
-          background: 'rgba(245,158,11,0.08)',
-          border: '1px solid rgba(245,158,11,0.20)',
+          margin: '8px 16px 0', padding: '8px 12px',
+          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)',
           borderRadius: 7, fontSize: 11.5, color: '#B45309', lineHeight: 1.5,
         }}>
-          The monthly SI ceiling was last updated in {ceilingYear}. Update it every January per the GOSI announcement to ensure correct deductions.
+          SI ceiling last updated in {ceilingYear}. Update every January per GOSI announcement.
         </div>
       )}
 
-      <SettingRow label="Monthly SI ceiling" sub="Maximum insurable wage per month (EGP) — update every January">
+      <SettingRow label="Monthly SI ceiling" sub="Maximum insurable wage per month (EGP)">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>EGP</span>
           <NumberInput value={ceiling} onChange={setCeiling} min={1000} max={99999} step={100} width={90} />
         </div>
       </SettingRow>
 
-      <SettingRow label="Ceiling last updated" sub="Auto-stamped when you save this section">
+      <SettingRow label="Ceiling last updated">
         <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{fmtDate}</span>
       </SettingRow>
 
       <Divider />
 
-      <SettingRow label="Employee SI rate" sub="Fixed by Egyptian Law 148/2019 — not configurable">
+      <SettingRow label="Employee SI rate" sub="Fixed by Egyptian Law 148/2019">
         <span style={{
           fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)',
           background: 'var(--surface-inset)', padding: '3px 10px', borderRadius: 6,
         }}>11%</span>
       </SettingRow>
-      <SettingRow label="Employer SI rate" sub="Fixed by Egyptian Law 148/2019 — not configurable">
+      <SettingRow label="Employer SI rate" sub="Fixed by Egyptian Law 148/2019">
         <span style={{
           fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)',
           background: 'var(--surface-inset)', padding: '3px 10px', borderRadius: 6,
         }}>18.75%</span>
       </SettingRow>
-      <SettingRow label="Martyrs' Fund rate" sub="Legal Entities only — fixed by law" last>
+      <SettingRow label="Martyrs' Fund rate" sub="Legal Entities only" last>
         <span style={{
           fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)',
           background: 'var(--surface-inset)', padding: '3px 10px', borderRadius: 6,
@@ -583,7 +407,7 @@ function SocialInsuranceSection() {
   );
 }
 
-// ─── Section 4 — Portal Configuration ──────────────────────────────────────
+// ─── Section 3 — Portal Configuration ──────────────────────────────────────
 function PortalConfigSection() {
   const { auth, setAuth } = useAuth();
   const gateway = useGateway();
@@ -592,7 +416,17 @@ function PortalConfigSection() {
   const pc0 = auth.portalConfig || {};
   const [holidaySrc,    setHolidaySrc]    = useState(pc0.default_holiday_source      || 'zoho');
   const [allowOverride, setAllowOverride] = useState(pc0.allow_working_days_override ?? false);
+  const [allowMultiRun, setAllowMultiRun] = useState(pc0.allow_multiple_runs         ?? false);
   const [saving,        setSaving]        = useState(false);
+
+  const saved = useRef({
+    holidaySrc:    pc0.default_holiday_source      || 'zoho',
+    allowOverride: pc0.allow_working_days_override ?? false,
+    allowMultiRun: pc0.allow_multiple_runs         ?? false,
+  });
+  const isDirty = holidaySrc    !== saved.current.holidaySrc
+               || allowOverride !== saved.current.allowOverride
+               || allowMultiRun !== saved.current.allowMultiRun;
 
   const handleSave = async () => {
     setSaving(true);
@@ -601,15 +435,18 @@ function PortalConfigSection() {
         section:                     'portal_config',
         default_holiday_source:      holidaySrc,
         allow_working_days_override: allowOverride,
+        allow_multiple_runs:         allowMultiRun,
       });
       if (result.status === 'success') {
         showToast('Portal configuration saved', 'success');
+        saved.current = { holidaySrc, allowOverride, allowMultiRun };
         setAuth(prev => ({
           ...prev,
           portalConfig: {
             ...prev.portalConfig,
             default_holiday_source:      holidaySrc,
             allow_working_days_override: allowOverride,
+            allow_multiple_runs:         allowMultiRun,
           },
         }));
       } else {
@@ -619,29 +456,32 @@ function PortalConfigSection() {
   };
 
   return (
-    <SectionCard title="Portal Configuration" onSave={handleSave} saving={saving}>
-      <SettingRow label="Holiday source" sub="How public holidays are fetched when creating a payroll setup">
+    <SectionCard title="Portal Configuration" onSave={handleSave} saving={saving} dirty={isDirty}>
+      <SettingRow label="Holiday source" sub="Source for public holidays in payroll setup">
         <SelectField
           value={holidaySrc}
           onChange={setHolidaySrc}
           options={[
-            { value: 'zoho',   label: 'Zoho People — fetch from holiday calendar' },
-            { value: 'manual', label: 'Manual — HR enters holidays directly' },
+            { value: 'zoho',   label: 'Zoho People' },
+            { value: 'manual', label: 'Manual' },
           ]}
         />
       </SettingRow>
+      <SettingRow label="Working days override" sub="Allow overriding working days on payroll setup">
+        <Toggle value={allowOverride} onChange={setAllowOverride} />
+      </SettingRow>
       <SettingRow
-        label="Allow working days override"
-        sub="Shows an override field on the payroll setup review step"
+        label="Allow multiple runs per period"
+        sub="Re-run a completed period only if no processing run exists"
         last
       >
-        <Toggle value={allowOverride} onChange={setAllowOverride} />
+        <Toggle value={allowMultiRun} onChange={setAllowMultiRun} />
       </SettingRow>
     </SectionCard>
   );
 }
 
-// ─── Section 5 — Portal Users ───────────────────────────────────────────────
+// ─── Section 4 — Portal Users ───────────────────────────────────────────────
 function PortalUsersSection() {
   const { auth } = useAuth();
   const gateway = useGateway();
@@ -657,13 +497,8 @@ function PortalUsersSection() {
     if (!empId) { showToast('Enter an employee ID', 'warning'); return; }
     setAdding(true);
     try {
-      const result = await gateway.invoke('portalSaveSettings', {
-        section: 'portal_users',
-        user_id: empId,   // gateway param is user_id (Zoho People EmployeeID)
-        role:    newRole,
-      });
+      const result = await gateway.invoke('portalSaveSettings', { section: 'portal_users', user_id: empId, role: newRole });
       if (result.status === 'success') {
-        // Gateway returns only { status, message } — update local state manually
         setPortalUsers(prev => ({ ...prev, [empId]: newRole }));
         setNewEmpId('');
         showToast(`${empId} added as ${newRole}`, 'success');
@@ -674,23 +509,10 @@ function PortalUsersSection() {
   };
 
   const handleRemove = async (userId) => {
-    if (userId === auth.employeeId) {
-      showToast('You cannot remove yourself', 'warning');
-      return;
-    }
-    // Gateway: portalSaveSettings section=portal_users, role='' removes the user
-    const result = await gateway.invoke('portalSaveSettings', {
-      section: 'portal_users',
-      user_id: userId,
-      role:    '',   // empty role = remove user from map
-    });
+    if (userId === auth.employeeId) { showToast('You cannot remove yourself', 'warning'); return; }
+    const result = await gateway.invoke('portalSaveSettings', { section: 'portal_users', user_id: userId, role: '' });
     if (result.status === 'success') {
-      // Gateway returns only { status, message } — update local state manually
-      setPortalUsers(prev => {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
-      });
+      setPortalUsers(prev => { const next = { ...prev }; delete next[userId]; return next; });
       showToast(`${userId} removed`, 'success');
     } else {
       showToast(result.message || 'Remove failed', 'error');
@@ -704,14 +526,13 @@ function PortalUsersSection() {
 
   return (
     <SectionCard title="Portal Users">
-      {/* User list */}
       {Object.keys(portalUsers).length === 0 ? (
         <div style={{ padding: '20px 16px', textAlign: 'center' }}>
           <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>No users configured</p>
         </div>
       ) : (
         Object.entries(portalUsers).map(([uid, role]) => {
-          const rc    = roleColors[role] || { bg: 'var(--surface-inset)', color: 'var(--text-secondary)' };
+          const rc     = roleColors[role] || { bg: 'var(--surface-inset)', color: 'var(--text-secondary)' };
           const isSelf = uid === auth.employeeId;
           const initials = uid.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || 'U';
           return (
@@ -721,7 +542,7 @@ function PortalUsersSection() {
             }}>
               <div style={{
                 width: 30, height: 30, borderRadius: '50%',
-                background: ACCENT_BG, border: `1px solid var(--accent-border)`,
+                background: ACCENT_BG, border: '1px solid var(--accent-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
                 <span style={{ fontSize: 10, fontWeight: 600, color: ACCENT_TEXT }}>{initials}</span>
@@ -758,7 +579,6 @@ function PortalUsersSection() {
         })
       )}
 
-      {/* Add user form */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
         <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
           Add user
@@ -774,8 +594,7 @@ function PortalUsersSection() {
               flex: 1, border: '1px solid var(--border)', borderRadius: 7,
               padding: '7px 10px', fontSize: 12.5,
               background: 'var(--surface)', color: 'var(--text-primary)',
-              outline: 'none', fontFamily: 'monospace',
-              textTransform: 'uppercase',
+              outline: 'none', fontFamily: 'monospace', textTransform: 'uppercase',
             }}
             onFocus={e => e.target.style.borderColor = ACCENT}
             onBlur={e  => e.target.style.borderColor = 'var(--border)'}
@@ -814,8 +633,7 @@ function PortalUsersSection() {
             <div style={{
               width: 13, height: 13,
               border: '2px solid rgba(255,255,255,0.3)',
-              borderTopColor: '#fff',
-              borderRadius: '50%',
+              borderTopColor: '#fff', borderRadius: '50%',
               animation: 'orca-spin 0.7s linear infinite',
             }} />
           )}
@@ -826,11 +644,293 @@ function PortalUsersSection() {
   );
 }
 
+// ─── Feature label map — avoids circular import with featureRegistry ─────────
+const FEATURE_LABELS = {
+  feature_dashboard:     'Dashboard',
+  feature_run_payroll:   'Payroll Runs',
+  feature_queue_monitor: 'Queue Monitor',
+  feature_reports:       'Reports',
+  feature_employees:     'Employees',
+  feature_settings:      'Settings',
+};
+const ALL_FEATURES = Object.keys(FEATURE_LABELS);
+
+// ─── Section 5 — Roles & Permissions ────────────────────────────────────────
+function RolesSection() {
+  const { auth, setAuth } = useAuth();
+  const gateway = useGateway();
+  const { show: showToast } = useToast();
+
+  const [roles,        setRoles]        = useState(() => JSON.parse(JSON.stringify(auth.portalConfig?.portal_roles || {})));
+  const [saving,       setSaving]       = useState(false);
+  const [addingRole,   setAddingRole]   = useState(false);
+  const [newRoleName,  setNewRoleName]  = useState('');
+
+  const saved    = useRef(JSON.stringify(auth.portalConfig?.portal_roles || {}));
+  const isDirty  = JSON.stringify(roles) !== saved.current;
+  // Admin always first; remaining roles in insertion order (first added → first displayed)
+  const roleKeys = ['admin', ...Object.keys(roles).filter(k => k !== 'admin')];
+
+  const handleToggle = (role, feature) => {
+    if (role === 'admin' && feature === 'feature_settings') return;
+    setRoles(prev => {
+      const perms = prev[role] || [];
+      const next  = perms.includes(feature) ? perms.filter(f => f !== feature) : [...perms, feature];
+      return { ...prev, [role]: next };
+    });
+  };
+
+  const handleAddRole = () => {
+    const key = newRoleName.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!key)       { showToast('Enter a role name', 'warning'); return; }
+    if (roles[key]) { showToast('Role already exists', 'warning'); return; }
+    setRoles(prev => ({ ...prev, [key]: [] }));
+    setAddingRole(false);
+    setNewRoleName('');
+  };
+
+  const handleDeleteRole = role => {
+    if (role === 'admin') { showToast('Cannot delete the admin role', 'warning'); return; }
+    if (roleKeys.length <= 1) { showToast('At least one role is required', 'warning'); return; }
+    setRoles(prev => { const n = { ...prev }; delete n[role]; return n; });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const result = await gateway.invoke('portalSaveSettings', { section: 'portal_roles', portal_roles: roles });
+      if (result.status === 'success') {
+        showToast('Roles & permissions saved', 'success');
+        saved.current = JSON.stringify(roles);
+        setAuth(prev => ({ ...prev, portalConfig: { ...prev.portalConfig, portal_roles: { ...roles } } }));
+      } else {
+        showToast(result.message || 'Save failed', 'error');
+      }
+    } finally { setSaving(false); }
+  };
+
+  const saveDisabled = saving || !isDirty;
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginTop: 12,
+    }}>
+      {/* Card header */}
+      <div style={{
+        padding: '10px 16px',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--surface-raised)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          Roles &amp; Permissions
+        </span>
+      </div>
+
+      {/* Matrix table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--surface-raised)', borderBottom: '1px solid var(--border)' }}>
+              {/* Feature column — sticky left */}
+              <th style={{ padding: '10px 16px', textAlign: 'left', width: '30%', position: 'sticky', left: 0, zIndex: 2, background: 'var(--surface-raised)' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Feature
+                </span>
+              </th>
+
+              {/* Role columns */}
+              {roleKeys.map(role => (
+                <th key={role} style={{ padding: '10px 16px', textAlign: 'center', minWidth: 110 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                    <span style={{
+                      fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)',
+                      textTransform: 'capitalize',
+                    }}>
+                      {role.replace(/_/g, ' ')}
+                    </span>
+                    {role !== 'admin' && (
+                      <button
+                        onClick={() => handleDeleteRole(role)}
+                        style={{
+                          fontSize: 10, color: '#DC2626', background: 'none', border: 'none',
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          padding: '2px 7px', borderRadius: 5, transition: 'background 120ms',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    {role === 'admin' && (
+                      <span style={{ fontSize: 9.5, color: 'var(--text-muted)', padding: '2px 7px' }}>Protected</span>
+                    )}
+                  </div>
+                </th>
+              ))}
+
+              {/* Add role column */}
+              <th style={{ padding: '10px 16px', textAlign: 'center', minWidth: 120 }}>
+                {addingRole ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newRoleName}
+                      onChange={e => setNewRoleName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter')  handleAddRole();
+                        if (e.key === 'Escape') { setAddingRole(false); setNewRoleName(''); }
+                      }}
+                      placeholder="Role name"
+                      style={{
+                        width: 90, border: '1px solid var(--border)', borderRadius: 6,
+                        padding: '5px 8px', fontSize: 11.5, textAlign: 'center',
+                        background: 'var(--surface)', color: 'var(--text-primary)',
+                        outline: 'none', fontFamily: 'inherit',
+                      }}
+                      onFocus={e => e.target.style.borderColor = ACCENT}
+                      onBlur={e  => e.target.style.borderColor = 'var(--border)'}
+                    />
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      <button
+                        onClick={handleAddRole}
+                        style={{
+                          padding: '4px 10px', background: ACCENT, color: '#fff',
+                          border: 'none', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        Create
+                      </button>
+                      <button
+                        onClick={() => { setAddingRole(false); setNewRoleName(''); }}
+                        style={{
+                          padding: '4px 8px', background: 'none',
+                          border: '1px solid var(--border)', borderRadius: 5,
+                          fontSize: 11, color: 'var(--text-secondary)',
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingRole(true)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 11.5, fontWeight: 600, color: ACCENT,
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontFamily: 'inherit', padding: '4px 10px', borderRadius: 6,
+                      transition: 'background 120ms',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = ACCENT_BG}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add role
+                  </button>
+                )}
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {ALL_FEATURES.map((featureKey, fi) => (
+              <tr key={featureKey} style={{ borderBottom: fi < ALL_FEATURES.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                {/* Feature label — sticky left */}
+                <td style={{ padding: '12px 16px', position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface)' }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {FEATURE_LABELS[featureKey]}
+                  </span>
+                </td>
+
+                {/* Checkboxes */}
+                {roleKeys.map(role => {
+                  const locked  = role === 'admin' && featureKey === 'feature_settings';
+                  const checked = (roles[role] || []).includes(featureKey);
+                  return (
+                    <td key={role} style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <button
+                          onClick={() => handleToggle(role, featureKey)}
+                          title={locked ? 'Admin always has Settings access' : undefined}
+                          style={{
+                            width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                            border: `2px solid ${checked ? ACCENT : 'var(--border-strong)'}`,
+                            background: checked ? ACCENT : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: locked ? 'not-allowed' : 'pointer',
+                            opacity: locked ? 0.45 : 1,
+                            transition: 'background 150ms, border-color 150ms',
+                          }}
+                          onMouseEnter={e => { if (!locked && !checked) e.currentTarget.style.borderColor = ACCENT; }}
+                          onMouseLeave={e => { if (!locked && !checked) e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
+                        >
+                          {checked && (
+                            <svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="#fff" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  );
+                })}
+
+                {/* Empty cell under add-role column */}
+                <td />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Save footer */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+        <button
+          onClick={handleSave}
+          disabled={saveDisabled}
+          style={{
+            width: '100%', padding: '9px 16px',
+            background: saveDisabled ? 'var(--surface-inset)' : GRAPHITE,
+            color: saveDisabled ? 'var(--text-muted)' : '#fff',
+            border: 'none', borderRadius: 8,
+            fontSize: 12.5, fontWeight: 600,
+            cursor: saveDisabled ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            fontFamily: 'inherit', transition: 'background 120ms',
+          }}
+          onMouseEnter={e => { if (!saveDisabled) e.currentTarget.style.background = GRAPHITE_H; }}
+          onMouseLeave={e => { if (!saveDisabled) e.currentTarget.style.background = GRAPHITE; }}
+        >
+          {saving && (
+            <div style={{
+              width: 13, height: 13, border: '2px solid rgba(255,255,255,0.3)',
+              borderTopColor: '#fff', borderRadius: '50%',
+              animation: 'orca-spin 0.7s linear infinite',
+            }} />
+          )}
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Settings ───────────────────────────────────────────────────────────
 export default function Settings() {
   const { auth } = useAuth();
 
-  // Access guard — only admins see Settings
   if (auth.role !== 'admin') {
     return (
       <div style={{
@@ -848,17 +948,21 @@ export default function Settings() {
   }
 
   return (
-    <>
-      <div style={{ maxWidth: 560, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
-          Settings
-        </h1>
-        <PayrollRunSection />
-        <AttendanceSection />
-        <SocialInsuranceSection />
-        <PortalConfigSection />
-        <PortalUsersSection />
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
+        Settings
+      </h1>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <SocialInsuranceSection />
+          <PortalUsersSection />
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <PortalConfigSection />
+          <AttendanceSection />
+        </div>
       </div>
-    </>
+      <RolesSection />
+    </div>
   );
 }

@@ -13,13 +13,24 @@
 // adding a new role in Zoho requires zero frontend code changes or deploys.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import Dashboard    from '../features/Dashboard';
 import RunPayroll   from '../features/RunPayroll';
 import QueueMonitor from '../features/QueueMonitor';
 import Reports      from '../features/Reports';
+import Employees    from '../features/Employees';
 import Settings     from '../features/Settings';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 // Co-located with feature definitions. Stroke width 1.8 — consistent across all.
+
+function IconDashboard() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 13a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z" />
+    </svg>
+  );
+}
 
 function IconRunPayroll() {
   return (
@@ -50,6 +61,15 @@ function IconReports() {
   );
 }
 
+function IconEmployees() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  );
+}
+
 function IconSettings() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -64,15 +84,22 @@ function IconSettings() {
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
 export const FEATURE_REGISTRY = {
+  feature_dashboard: {
+    label:     'Dashboard',
+    Icon:      IconDashboard,
+    component: Dashboard,
+    order:     0,
+    minRoles:  ['admin', 'manager'],
+  },
   feature_run_payroll: {
-    label:     'Run Payroll',
+    label:     'Payroll Runs',
     Icon:      IconRunPayroll,
     component: RunPayroll,
     order:     1,
     minRoles:  ['admin', 'manager'],
   },
   feature_queue_monitor: {
-    label:     'Queue',
+    label:     'Queue Monitor',
     Icon:      IconQueueMonitor,
     component: QueueMonitor,
     order:     2,
@@ -85,11 +112,18 @@ export const FEATURE_REGISTRY = {
     order:     3,
     minRoles:  ['admin', 'manager'],
   },
+  feature_employees: {
+    label:     'Employees',
+    Icon:      IconEmployees,
+    component: Employees,
+    order:     4,
+    minRoles:  ['admin', 'manager'],
+  },
   feature_settings: {
     label:     'Settings',
     Icon:      IconSettings,
     component: Settings,
-    order:     4,
+    order:     5,
     minRoles:  ['admin'],
   },
 };

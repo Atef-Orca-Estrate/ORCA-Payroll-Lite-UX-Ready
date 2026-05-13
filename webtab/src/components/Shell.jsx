@@ -3,7 +3,7 @@ import { useAuth }       from '../context/AuthContext';
 import { useSDK }        from '../hooks/useSDK';
 import { useGateway }    from '../hooks/useGateway';
 import { resolvePermissions } from '../utils/permissions';
-import { LoadingScreen, AccessDenied, ErrorScreen } from './LoadingScreen';
+import { LoadingScreen, AccessDenied, RoleRevokedScreen, ErrorScreen } from './LoadingScreen';
 import { Sidebar, BottomNav, ThemeToggle } from './Nav';
 import { FEATURE_REGISTRY }   from '../config/featureRegistry';
 
@@ -34,10 +34,10 @@ export default function Shell() {
           throw new Error(settingsResult.message || 'Failed to load settings');
         }
 
-        const { role, features } = resolvePermissions(settingsResult.portal_config, employeeId);
+        const { role, features, roleRevoked } = resolvePermissions(settingsResult.portal_config, employeeId);
 
         if (!role) {
-          setAuth(prev => ({ ...prev, loading: false, denied: true, employeeId }));
+          setAuth(prev => ({ ...prev, loading: false, denied: true, roleRevoked: roleRevoked || false, employeeId }));
           return;
         }
 
@@ -66,7 +66,9 @@ export default function Shell() {
 
   if (auth.loading) return <LoadingScreen />;
   if (initError)    return <ErrorScreen message={initError} onRetry={() => window.location.reload()} />;
-  if (auth.denied)  return <AccessDenied employeeId={auth.employeeId} />;
+  if (auth.denied)  return auth.roleRevoked
+    ? <RoleRevokedScreen employeeId={auth.employeeId} />
+    : <AccessDenied     employeeId={auth.employeeId} />;
 
   const ActiveComponent = activeFeature ? FEATURE_REGISTRY[activeFeature]?.component : null;
   const isRunPayroll    = activeFeature === 'feature_run_payroll';
@@ -75,7 +77,7 @@ export default function Shell() {
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--surface-raised)' }}>
       <Sidebar active={activeFeature} onNavigate={handleNavigate} />
 
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden pb-16 md:pb-0">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Mobile brand header */}
         <div className="md:hidden flex-shrink-0 flex items-center justify-between px-4 py-3"
           style={{ background: '#0F172A', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -122,7 +124,6 @@ export default function Shell() {
         </div>
       </main>
 
-      <BottomNav active={activeFeature} onNavigate={handleNavigate} />
     </div>
   );
 }
